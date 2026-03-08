@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+*.swp
+*.swo
+*~
+.DS_Store
+*.db
+*.db-journal
+.env*
+*.log
+Thumbs.db
+*.profraw
+.vscode/
