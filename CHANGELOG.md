@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/Project-Colony/Spotter/compare/v0.1.2...v0.2.0) (2026-07-20)
+
+
+### Features
+
+* **ci:** sign release assets with the Project-Colony org key ([a44f158](https://github.com/Project-Colony/Spotter/commit/a44f158bb6c8cf36d58fbaae5de2a1ad30fcfe75))
+* declare signed releases in the manifest ([119c795](https://github.com/Project-Colony/Spotter/commit/119c79532f5076abef7228b61fb81491baf270ef))
+
 ## [0.1.2](https://github.com/Project-Colony/Spotter/compare/v0.1.1...v0.1.2) (2026-07-20)
 
 
