@@ -2,27 +2,28 @@
   "name": "Spotter",
   "category": "Games",
   "icon": "assets/icons/icon.png",
-  "platforms": ["windows", "linux", "macos", "macos-x86"],
+  "platforms": [
+    "windows",
+    "linux",
+    "macos",
+    "macos-x86"
+  ],
   "releaseFiles": {
     "windows": {
       "tag": "latest",
-      "file": "spotter-windows.exe",
-      "binary": "spotter-windows.exe"
+      "file": "spotter-windows.exe"
     },
     "linux": {
       "tag": "latest",
-      "file": "spotter-linux",
-      "binary": "spotter-linux"
+      "file": "spotter-linux"
     },
     "macos": {
       "tag": "latest",
-      "file": "spotter-macos-arm",
-      "binary": "spotter-macos-arm"
+      "file": "spotter-macos-arm"
     },
     "macos-x86": {
       "tag": "latest",
-      "file": "spotter-macos-x86",
-      "binary": "spotter-macos-x86"
+      "file": "spotter-macos-x86"
     }
   }
 }
