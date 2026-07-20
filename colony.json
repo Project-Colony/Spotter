@@ -25,5 +25,6 @@
       "tag": "latest",
       "file": "spotter-macos-x86"
     }
-  }
+  },
+  "signed": true
 }
