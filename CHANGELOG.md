@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Project-Colony/Spotter/compare/v0.1.1...v0.1.2) (2026-07-20)
+
+
+### Bug Fixes
+
+* drop the misused binary field - per spec it means extract-from-archive, these assets are raw binaries ([de952dc](https://github.com/Project-Colony/Spotter/commit/de952dc62bd3952396d28037d3cfa102a40f3435))
+
 ## [0.1.1](https://github.com/Project-Colony/Spotter/compare/v0.1.0...v0.1.1) (2026-03-08)
 
 
