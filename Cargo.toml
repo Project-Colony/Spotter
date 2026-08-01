@@ -3,7 +3,7 @@ name = "spotter"
 version = "0.1.2"
 edition = "2021"
 description = "A cross-platform game library tracker and statistics dashboard"
-license = "MIT"
+license = "GPL-3.0-or-later"
 
 [dependencies]
 iced = { version = "0.14", features = ["image"] }

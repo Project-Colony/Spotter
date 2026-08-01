@@ -81,4 +81,4 @@ All data is stored locally:
 
 ## License
 
-MIT
+GPL-3.0-or-later - see [LICENSE](LICENSE).
