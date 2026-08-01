@@ -71,10 +71,7 @@ impl Spotter {
             "Importing from Steam... ({} existing games)",
             self.games.len()
         );
-        eprintln!(
-            "[app] Starting Steam import (id={})",
-            &self.profile.steam_id
-        );
+        eprintln!("[app] Starting Steam import (id={})", self.profile.steam_id);
         let api_key = self.profile.steam_api_key.clone();
         let steam_id = self.profile.steam_id.clone();
         // Build map of already-enriched games so full_import can skip them

@@ -574,6 +574,272 @@ pub fn cover_url(appid: u32) -> String {
     )
 }
 
+/// Import all Steam games with full details using concurrent HTML scraping.
+///
+/// `existing` maps steam_appid → (has_store_data, achievements_100_percent).
+/// Games that already have store data are skipped; games with 100% achievements
+/// skip the achievement re-fetch.  This makes re-imports near-instant when the
+/// library is already enriched.
+pub fn full_import(
+    api_key: &str,
+    steam_id: &str,
+    existing: HashMap<u32, (bool, bool)>,
+) -> Result<Vec<Game>, String> {
+    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    logger.log("steam", "Starting Steam full import");
+
+    eprintln!("[steam] Starting full import...");
+    let games = fetch_owned_games(api_key, steam_id)?;
+    let total = games.len();
+
+    // Count how many we can skip
+    let mut skip_scrape = 0usize;
+    let mut skip_ach = 0usize;
+    for g in &games {
+        if let Some(appid) = g.steam_appid {
+            let (has_store, ach_done) = existing.get(&appid).copied().unwrap_or((false, false));
+            if has_store {
+                skip_scrape += 1;
+            }
+            if ach_done {
+                skip_ach += 1;
+            }
+        }
+    }
+
+    let need_scrape = total - skip_scrape;
+    let need_ach = total - skip_ach;
+    eprintln!(
+        "[steam] {} games: {} need scraping ({} cached), {} need achievement update ({} complete)",
+        total, need_scrape, skip_scrape, need_ach, skip_ach
+    );
+
+    let existing = Arc::new(existing);
+    // Pre-extract appids to avoid locking games just for the ID
+    let appids: Arc<Vec<u32>> =
+        Arc::new(games.iter().map(|g| g.steam_appid.unwrap_or(0)).collect());
+    let games = Arc::new(Mutex::new(games));
+    let progress = Arc::new(AtomicUsize::new(0));
+    let failed = Arc::new(Mutex::new(Vec::<String>::new()));
+    // AtomicUsize counter replaces Mutex<Vec<usize>> queue — no lock contention
+    let next_idx = Arc::new(AtomicUsize::new(0));
+
+    let mut handles = Vec::new();
+
+    for _ in 0..SCRAPE_THREADS {
+        let games = Arc::clone(&games);
+        let progress = Arc::clone(&progress);
+        let failed = Arc::clone(&failed);
+        let next_idx = Arc::clone(&next_idx);
+        let existing = Arc::clone(&existing);
+        let appids = Arc::clone(&appids);
+        let steam_id = steam_id.to_string();
+
+        let handle = std::thread::spawn(move || {
+            let agent = make_agent();
+
+            loop {
+                let i = next_idx.fetch_add(1, Ordering::SeqCst);
+                if i >= total {
+                    break;
+                }
+
+                let appid = appids[i];
+                if appid == 0 {
+                    continue;
+                }
+
+                let &(has_store, ach_done) = existing.get(&appid).unwrap_or(&(false, false));
+
+                let mut warnings: Vec<&str> = Vec::new();
+                let mut skipped_all = true;
+
+                // ── Store page scrape (skip if already enriched) ──
+                if has_store {
+                    // Already have genre + description + release_date → skip
+                } else {
+                    skipped_all = false;
+                    let mut scrape_ok = false;
+                    for attempt in 0..3u32 {
+                        if attempt > 0 {
+                            let wait = (attempt as u64 + 1) * 2;
+                            std::thread::sleep(std::time::Duration::from_secs(wait));
+                        }
+                        match scrape_store_page(&agent, appid) {
+                            Ok(data) => {
+                                let mut g = match games.lock() {
+                                    Ok(g) => g,
+                                    Err(e) => {
+                                        eprintln!("[steam] lock poisoned: {}", e);
+                                        break;
+                                    }
+                                };
+                                if let Some(url) = data.cover_url {
+                                    g[i].cover_url = url;
+                                }
+                                if !data.genre.is_empty() {
+                                    g[i].genre = data.genre;
+                                }
+                                if !data.description.is_empty() {
+                                    g[i].description = data.description;
+                                }
+                                if !data.release_date.is_empty() {
+                                    g[i].release_date = data.release_date;
+                                }
+                                if !data.tags.is_empty() {
+                                    g[i].tags = data.tags;
+                                }
+                                g[i].review_percent = data.review_percent;
+                                scrape_ok = true;
+                                break;
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "[steam]   appid {}: scrape attempt {} failed: {}",
+                                    appid,
+                                    attempt + 1,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    if !scrape_ok {
+                        warnings.push("store page");
+                    }
+                }
+
+                // ── Achievements (skip if 100% complete) ──
+                if ach_done {
+                    // Already unlocked all achievements → skip
+                } else {
+                    skipped_all = false;
+                    let mut ach_ok = false;
+                    for attempt in 0..3u32 {
+                        if attempt > 0 {
+                            let wait = 1u64 << attempt;
+                            std::thread::sleep(std::time::Duration::from_secs(wait));
+                        }
+                        match scrape_achievements(&agent, &steam_id, appid) {
+                            Ok(result) => {
+                                if let Ok(mut g) = games.lock() {
+                                    g[i].achievements_unlocked = result.unlocked;
+                                    g[i].achievements_total = result.total;
+                                }
+                                if !result.details.is_empty() {
+                                    if let Ok(conn) = crate::db::open() {
+                                        if let Err(e) = crate::db::save_achievements(
+                                            &conn,
+                                            appid,
+                                            &result.details,
+                                        ) {
+                                            eprintln!(
+                                                "[steam]   appid {}: DB save achievements failed: {}",
+                                                appid, e
+                                            );
+                                        }
+                                    }
+                                    // Pre-cache achievement icons during import
+                                    let icon_count = crate::images::download_achievement_icons(
+                                        appid,
+                                        &result.details,
+                                    );
+                                    if icon_count > 0 {
+                                        eprintln!(
+                                            "[steam]   appid {}: cached {} achievement icons",
+                                            appid, icon_count
+                                        );
+                                    }
+                                }
+                                ach_ok = true;
+                                break;
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "[steam]   appid {}: achievements attempt {} failed: {}",
+                                    appid,
+                                    attempt + 1,
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    if !ach_ok {
+                        warnings.push("achievements");
+                    }
+                }
+
+                // ── Progress ──
+                let done = progress.fetch_add(1, Ordering::SeqCst) + 1;
+
+                if skipped_all {
+                    // Don't log every skipped game to avoid spam
+                } else {
+                    // Read title from locked games only for logging (avoids cloning
+                    // all titles upfront — saves ~150KB+ for large libraries)
+                    let title = games.lock().map(|g| g[i].title.clone()).unwrap_or_default();
+                    if warnings.is_empty() {
+                        eprintln!("[steam] [{}/{}] {}", done, total, title);
+                    } else {
+                        let msg = format!("'{}': missing {}", title, warnings.join(", "));
+                        eprintln!("[steam] [{}/{}] WARN: {}", done, total, msg);
+                        if let Ok(mut f) = failed.lock() {
+                            f.push(msg);
+                        }
+                    }
+                }
+
+                // Only pause between actual HTTP requests
+                if !skipped_all {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    for h in handles {
+        h.join().map_err(|_| "Worker thread panicked".to_string())?;
+    }
+
+    let games = Arc::try_unwrap(games)
+        .map_err(|_| "Failed to unwrap Arc<games>")?
+        .into_inner()
+        .unwrap_or_else(|e| e.into_inner());
+    let failed = Arc::try_unwrap(failed)
+        .map_err(|_| "Failed to unwrap Arc<failed>")?
+        .into_inner()
+        .unwrap_or_else(|e| e.into_inner());
+
+    eprintln!(
+        "[steam] ===== Import complete: {} games processed =====",
+        total
+    );
+    if failed.is_empty() {
+        eprintln!("[steam] All games enriched successfully!");
+        logger.log(
+            "steam",
+            &format!("Import complete: {} games, all enriched", total),
+        );
+    } else {
+        eprintln!("[steam] {} game(s) with missing data:", failed.len());
+        for msg in &failed {
+            eprintln!("[steam]   - {}", msg);
+            logger.log("steam", &format!("WARN: {}", msg));
+        }
+        logger.log(
+            "steam",
+            &format!(
+                "Import complete: {} games, {} with missing data",
+                total,
+                failed.len()
+            ),
+        );
+    }
+
+    Ok(games)
+}
+
 // ───── Tests ─────
 
 #[cfg(test)]
@@ -931,270 +1197,4 @@ mod tests {
         let review = extract_review_percent_html(html);
         assert_eq!(review, Some(95));
     }
-}
-
-/// Import all Steam games with full details using concurrent HTML scraping.
-///
-/// `existing` maps steam_appid → (has_store_data, achievements_100_percent).
-/// Games that already have store data are skipped; games with 100% achievements
-/// skip the achievement re-fetch.  This makes re-imports near-instant when the
-/// library is already enriched.
-pub fn full_import(
-    api_key: &str,
-    steam_id: &str,
-    existing: HashMap<u32, (bool, bool)>,
-) -> Result<Vec<Game>, String> {
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
-    logger.log("steam", "Starting Steam full import");
-
-    eprintln!("[steam] Starting full import...");
-    let games = fetch_owned_games(api_key, steam_id)?;
-    let total = games.len();
-
-    // Count how many we can skip
-    let mut skip_scrape = 0usize;
-    let mut skip_ach = 0usize;
-    for g in &games {
-        if let Some(appid) = g.steam_appid {
-            let (has_store, ach_done) = existing.get(&appid).copied().unwrap_or((false, false));
-            if has_store {
-                skip_scrape += 1;
-            }
-            if ach_done {
-                skip_ach += 1;
-            }
-        }
-    }
-
-    let need_scrape = total - skip_scrape;
-    let need_ach = total - skip_ach;
-    eprintln!(
-        "[steam] {} games: {} need scraping ({} cached), {} need achievement update ({} complete)",
-        total, need_scrape, skip_scrape, need_ach, skip_ach
-    );
-
-    let existing = Arc::new(existing);
-    // Pre-extract appids to avoid locking games just for the ID
-    let appids: Arc<Vec<u32>> =
-        Arc::new(games.iter().map(|g| g.steam_appid.unwrap_or(0)).collect());
-    let games = Arc::new(Mutex::new(games));
-    let progress = Arc::new(AtomicUsize::new(0));
-    let failed = Arc::new(Mutex::new(Vec::<String>::new()));
-    // AtomicUsize counter replaces Mutex<Vec<usize>> queue — no lock contention
-    let next_idx = Arc::new(AtomicUsize::new(0));
-
-    let mut handles = Vec::new();
-
-    for _ in 0..SCRAPE_THREADS {
-        let games = Arc::clone(&games);
-        let progress = Arc::clone(&progress);
-        let failed = Arc::clone(&failed);
-        let next_idx = Arc::clone(&next_idx);
-        let existing = Arc::clone(&existing);
-        let appids = Arc::clone(&appids);
-        let steam_id = steam_id.to_string();
-
-        let handle = std::thread::spawn(move || {
-            let agent = make_agent();
-
-            loop {
-                let i = next_idx.fetch_add(1, Ordering::SeqCst);
-                if i >= total {
-                    break;
-                }
-
-                let appid = appids[i];
-                if appid == 0 {
-                    continue;
-                }
-
-                let &(has_store, ach_done) = existing.get(&appid).unwrap_or(&(false, false));
-
-                let mut warnings: Vec<&str> = Vec::new();
-                let mut skipped_all = true;
-
-                // ── Store page scrape (skip if already enriched) ──
-                if has_store {
-                    // Already have genre + description + release_date → skip
-                } else {
-                    skipped_all = false;
-                    let mut scrape_ok = false;
-                    for attempt in 0..3u32 {
-                        if attempt > 0 {
-                            let wait = (attempt as u64 + 1) * 2;
-                            std::thread::sleep(std::time::Duration::from_secs(wait));
-                        }
-                        match scrape_store_page(&agent, appid) {
-                            Ok(data) => {
-                                let mut g = match games.lock() {
-                                    Ok(g) => g,
-                                    Err(e) => {
-                                        eprintln!("[steam] lock poisoned: {}", e);
-                                        break;
-                                    }
-                                };
-                                if let Some(url) = data.cover_url {
-                                    g[i].cover_url = url;
-                                }
-                                if !data.genre.is_empty() {
-                                    g[i].genre = data.genre;
-                                }
-                                if !data.description.is_empty() {
-                                    g[i].description = data.description;
-                                }
-                                if !data.release_date.is_empty() {
-                                    g[i].release_date = data.release_date;
-                                }
-                                if !data.tags.is_empty() {
-                                    g[i].tags = data.tags;
-                                }
-                                g[i].review_percent = data.review_percent;
-                                scrape_ok = true;
-                                break;
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "[steam]   appid {}: scrape attempt {} failed: {}",
-                                    appid,
-                                    attempt + 1,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    if !scrape_ok {
-                        warnings.push("store page");
-                    }
-                }
-
-                // ── Achievements (skip if 100% complete) ──
-                if ach_done {
-                    // Already unlocked all achievements → skip
-                } else {
-                    skipped_all = false;
-                    let mut ach_ok = false;
-                    for attempt in 0..3u32 {
-                        if attempt > 0 {
-                            let wait = 1u64 << attempt;
-                            std::thread::sleep(std::time::Duration::from_secs(wait));
-                        }
-                        match scrape_achievements(&agent, &steam_id, appid) {
-                            Ok(result) => {
-                                if let Ok(mut g) = games.lock() {
-                                    g[i].achievements_unlocked = result.unlocked;
-                                    g[i].achievements_total = result.total;
-                                }
-                                if !result.details.is_empty() {
-                                    if let Ok(conn) = crate::db::open() {
-                                        if let Err(e) = crate::db::save_achievements(
-                                            &conn,
-                                            appid,
-                                            &result.details,
-                                        ) {
-                                            eprintln!(
-                                                "[steam]   appid {}: DB save achievements failed: {}",
-                                                appid, e
-                                            );
-                                        }
-                                    }
-                                    // Pre-cache achievement icons during import
-                                    let icon_count = crate::images::download_achievement_icons(
-                                        appid,
-                                        &result.details,
-                                    );
-                                    if icon_count > 0 {
-                                        eprintln!(
-                                            "[steam]   appid {}: cached {} achievement icons",
-                                            appid, icon_count
-                                        );
-                                    }
-                                }
-                                ach_ok = true;
-                                break;
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "[steam]   appid {}: achievements attempt {} failed: {}",
-                                    appid,
-                                    attempt + 1,
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    if !ach_ok {
-                        warnings.push("achievements");
-                    }
-                }
-
-                // ── Progress ──
-                let done = progress.fetch_add(1, Ordering::SeqCst) + 1;
-
-                if skipped_all {
-                    // Don't log every skipped game to avoid spam
-                } else {
-                    // Read title from locked games only for logging (avoids cloning
-                    // all titles upfront — saves ~150KB+ for large libraries)
-                    let title = games.lock().map(|g| g[i].title.clone()).unwrap_or_default();
-                    if warnings.is_empty() {
-                        eprintln!("[steam] [{}/{}] {}", done, total, title);
-                    } else {
-                        let msg = format!("'{}': missing {}", title, warnings.join(", "));
-                        eprintln!("[steam] [{}/{}] WARN: {}", done, total, msg);
-                        if let Ok(mut f) = failed.lock() {
-                            f.push(msg);
-                        }
-                    }
-                }
-
-                // Only pause between actual HTTP requests
-                if !skipped_all {
-                    std::thread::sleep(std::time::Duration::from_millis(500));
-                }
-            }
-        });
-
-        handles.push(handle);
-    }
-
-    for h in handles {
-        h.join().map_err(|_| "Worker thread panicked".to_string())?;
-    }
-
-    let games = Arc::try_unwrap(games)
-        .map_err(|_| "Failed to unwrap Arc<games>")?
-        .into_inner()
-        .unwrap_or_else(|e| e.into_inner());
-    let failed = Arc::try_unwrap(failed)
-        .map_err(|_| "Failed to unwrap Arc<failed>")?
-        .into_inner()
-        .unwrap_or_else(|e| e.into_inner());
-
-    eprintln!(
-        "[steam] ===== Import complete: {} games processed =====",
-        total
-    );
-    if failed.is_empty() {
-        eprintln!("[steam] All games enriched successfully!");
-        logger.log(
-            "steam",
-            &format!("Import complete: {} games, all enriched", total),
-        );
-    } else {
-        eprintln!("[steam] {} game(s) with missing data:", failed.len());
-        for msg in &failed {
-            eprintln!("[steam]   - {}", msg);
-            logger.log("steam", &format!("WARN: {}", msg));
-        }
-        logger.log(
-            "steam",
-            &format!(
-                "Import complete: {} games, {} with missing data",
-                total,
-                failed.len()
-            ),
-        );
-    }
-
-    Ok(games)
 }

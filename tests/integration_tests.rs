@@ -1,9 +1,9 @@
-/// Integration tests for platform import modules.
-///
-/// These tests validate JSON deserialization and data-mapping logic
-/// using mock API responses, without making real HTTP calls.
-/// If a platform changes its API response format, these tests will
-/// catch it before it reaches production.
+//! Integration tests for platform import modules.
+//!
+//! These tests validate JSON deserialization and data-mapping logic
+//! using mock API responses, without making real HTTP calls.
+//! If a platform changes its API response format, these tests will
+//! catch it before it reaches production.
 
 // ───── Steam mock API tests ─────
 
@@ -160,6 +160,9 @@ mod steam_import {
             #[serde(default)]
             games: Vec<GameInfo>,
         }
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct GameInfo {
             appid: u32,
@@ -360,6 +363,9 @@ mod psn_import {
             #[serde(alias = "totalItemCount", default)]
             total_item_count: u32,
         }
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct PsnTitle {
             #[serde(alias = "titleId", default)]
@@ -496,7 +502,7 @@ mod xbox_import {
         let games: Vec<Game> = history
             .titles
             .into_iter()
-            .filter(|t| is_game(t))
+            .filter(is_game)
             .map(|title| {
                 let last_played = if !title.last_time_played.is_empty() {
                     title.last_time_played.get(..10).unwrap_or("").to_string()
@@ -573,6 +579,9 @@ mod xbox_import {
             #[serde(alias = "continuationToken")]
             continuation_token: Option<String>,
         }
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct XblTitleSimple {
             #[serde(alias = "titleId", default)]
@@ -627,6 +636,9 @@ mod xbox_import {
             #[serde(default)]
             titles: Vec<XblTitle>,
         }
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct XblTitle {
             #[serde(alias = "titleId", default)]
@@ -870,6 +882,9 @@ mod gog_import {
             "totalPages": 3
         }"#;
 
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct FilteredResponse {
             #[serde(default)]
@@ -974,6 +989,9 @@ mod epic_import {
             "AppCategories": ["games"]
         }"#;
 
+        // Mirrors the upstream payload: the unread fields pin the response
+        // shape the importer depends on, so they stay despite dead_code.
+        #[allow(dead_code)]
         #[derive(serde::Deserialize)]
         struct EpicManifest {
             #[serde(alias = "DisplayName", default)]
@@ -1045,7 +1063,9 @@ mod epic_import {
 
         let mut games = Vec::new();
         for (_key, val) in obj {
-            if let (Some(title), Some(app_name)) = (
+            // `app_name` is not used in the mapping, but the manifest is only
+            // treated as a game when the key is present - keep the binding.
+            if let (Some(title), Some(_app_name)) = (
                 val.get("title").and_then(|v| v.as_str()),
                 val.get("app_name").and_then(|v| v.as_str()),
             ) {

@@ -823,8 +823,10 @@ fn game_status_colors_non_black() {
 
 #[test]
 fn settings_favorites_serde_roundtrip() {
-    let mut settings = spotter::models::Settings::default();
-    settings.favorites = vec![1, 42, 100];
+    let settings = spotter::models::Settings {
+        favorites: vec![1, 42, 100],
+        ..Default::default()
+    };
     let json = serde_json::to_string(&settings).unwrap();
     let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.favorites, vec![1, 42, 100]);
