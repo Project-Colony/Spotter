@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Project-Colony/Spotter/compare/v0.2.0...v0.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **ci:** tell gh which repository to upload the signatures to ([#8](https://github.com/Project-Colony/Spotter/issues/8)) ([eec8781](https://github.com/Project-Colony/Spotter/commit/eec8781e748629141a8eb0d307dcb46388143657))
+
 ## [0.2.0](https://github.com/Project-Colony/Spotter/compare/v0.1.2...v0.2.0) (2026-08-01)
 
 
