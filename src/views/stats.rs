@@ -331,7 +331,7 @@ fn platform_distribution<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Mes
 
 fn most_played_games<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Message> {
     let mut sorted: Vec<&crate::models::Game> = app.games.iter().collect();
-    sorted.sort_by(|a, b| b.playtime_minutes.cmp(&a.playtime_minutes));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.playtime_minutes));
 
     let max_time = sorted.first().map_or(1, |g| g.playtime_minutes) as f32;
 

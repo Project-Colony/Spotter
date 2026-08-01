@@ -1147,10 +1147,10 @@ impl Spotter {
                 games.sort_by_cached_key(|(_, g)| std::cmp::Reverse(g.title.to_lowercase()));
             }
             SortOrder::PlaytimeDesc => {
-                games.sort_by(|a, b| b.1.playtime_minutes.cmp(&a.1.playtime_minutes));
+                games.sort_by_key(|b| std::cmp::Reverse(b.1.playtime_minutes));
             }
             SortOrder::RatingDesc => {
-                games.sort_by(|a, b| b.1.rating.unwrap_or(0).cmp(&a.1.rating.unwrap_or(0)));
+                games.sort_by_key(|b| std::cmp::Reverse(b.1.rating.unwrap_or(0)));
             }
             SortOrder::LastPlayedDesc => {
                 games.sort_by(|a, b| b.1.last_played.cmp(&a.1.last_played));
