@@ -4,13 +4,34 @@ A cross-platform game library tracker and statistics dashboard built with [Rust]
 
 ## Features
 
-- **Multi-platform imports** — Steam, GOG, Epic Games, Xbox (via OpenXBL), and PlayStation Network
-- **Achievement tracking** — view and track achievements with icons, descriptions, and unlock dates
-- **Statistics dashboard** — playtime charts, status/platform distribution, most played games
-- **Customizable UI** — dark/darker/midnight themes, accent colors, UI scaling, sidebar width, compact mode
-- **Accessibility** — high contrast mode, large click targets, status label toggles
-- **Settings** — date format, notification preferences, toast duration, start screen, default status/platform
-- **Local-first** — all data stored in a local SQLite database, no cloud dependency
+- **Multi-platform imports** - Steam, GOG, Epic Games, Xbox (via OpenXBL), and PlayStation Network
+- **Achievement tracking** - view and track achievements with icons, descriptions, and unlock dates
+- **Statistics dashboard** - playtime charts, status/platform distribution, most played games
+- **Customizable UI** - dark/darker/midnight themes, accent colors, UI scaling, sidebar width, compact mode
+- **Accessibility** - high contrast mode, large click targets, status label toggles
+- **Settings** - date format, notification preferences, toast duration, start screen, default status/platform
+- **Local-first** - all data stored in a local SQLite database, no cloud dependency
+
+## Running the binaries
+
+The easiest way to install Spotter is through [Colony](https://github.com/Project-Colony/Colony), which downloads the right binary and checks its signature for you.
+
+To run a release by hand, download the asset for your system from the [latest release](https://github.com/Project-Colony/Spotter/releases/latest):
+
+| Asset | System |
+|---|---|
+| `spotter-linux` | Linux x86_64 |
+| `spotter-windows.exe` | Windows x86_64 |
+| `spotter-macos-arm` | macOS on Apple silicon |
+| `spotter-macos-x86` | macOS on Intel |
+
+Each asset has a matching `.sig` file, an ed25519 signature made with the Project-Colony release key.
+
+- **Linux**: `chmod +x spotter-linux && ./spotter-linux`. It needs a Wayland or X11 session and libxkbcommon, which every desktop distribution ships.
+- **Windows**: run `spotter-windows.exe`. The binary is not code-signed, so SmartScreen may ask you to confirm with **More info** then **Run anyway**.
+- **macOS**: `chmod +x spotter-macos-arm && xattr -d com.apple.quarantine spotter-macos-arm && ./spotter-macos-arm` (use `spotter-macos-x86` on Intel). The binary is not notarized, so Gatekeeper blocks it until the quarantine attribute is removed.
+
+`spotter --version` prints the version and exits without opening a window.
 
 ## Building
 
@@ -34,12 +55,12 @@ On first launch, Spotter creates a sample library. To import your own games, go 
 
 | Platform | Credential needed | Where to get it |
 |---|---|---|
-| Steam | API Key + Steam ID | [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) — or use the "Login with Steam" button |
+| Steam | API Key + Steam ID | [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) - or use the "Login with Steam" button |
 | GOG | OAuth token | GOG Galaxy client settings |
-| Epic | — | Auto-scans local Epic Games Launcher |
+| Epic | - | Auto-scans local Epic Games Launcher |
 | Xbox | OpenXBL API key | [xbl.io](https://xbl.io) |
 | PlayStation | NPSSO token | Browser cookies at [store.playstation.com](https://store.playstation.com) |
-| Nintendo | — | Manual entry (no import API) |
+| Nintendo | - | Manual entry (no import API) |
 
 ## Testing
 

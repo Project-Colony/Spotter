@@ -18,5 +18,9 @@ mod views;
 mod xbox;
 
 fn main() -> iced::Result {
+    if std::env::args().nth(1).as_deref() == Some("--version") {
+        println!("spotter {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     app::run()
 }
