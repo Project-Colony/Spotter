@@ -6,9 +6,9 @@ updates:
       interval: weekly
     allow:
       - dependency-type: all
-    groups:
-      cargo-minor-patch:
-        update-types: [minor, patch]
+    # No groups: Cargo.lock is not committed, so Dependabot only raises bumps
+    # outside the current requirement, which are breaking 0.x releases. Keep
+    # each one in its own PR.
 
   - package-ecosystem: github-actions
     directory: /
