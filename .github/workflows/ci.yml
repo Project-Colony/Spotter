@@ -54,6 +54,20 @@ jobs:
       - name: Build (debug)
         run: cargo build --verbose
 
+      # Same check as the release build: SignPath only signs an .exe whose
+      # version resource names the project and the version (build.rs).
+      - name: Check the Windows version resource
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $info = (Get-Item target\debug\spotter.exe).VersionInfo
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version
+          "ProductName='$($info.ProductName)' ProductVersion='$($info.ProductVersion)'"
+          if ($info.ProductName -cne 'Spotter' -or $info.ProductVersion -cne $version) {
+            Write-Error "expected ProductName 'Spotter' and ProductVersion '$version'"
+            exit 1
+          }
+
       - name: Run tests
         run: cargo test --verbose
 
