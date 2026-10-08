@@ -54,18 +54,12 @@ pub fn extract_code(input: &str) -> Option<String> {
 /// Exchange an authorization code for access + refresh tokens.
 /// Returns (access_token, refresh_token).
 pub fn exchange_code(code: &str) -> Result<(String, String), String> {
-    let url = format!(
-        "{}?client_id={}&client_secret={}&grant_type=authorization_code&code={}&redirect_uri={}",
-        GOG_TOKEN_URL,
-        GOG_CLIENT_ID,
-        GOG_CLIENT_SECRET,
-        url_encode(code),
-        url_encode(GOG_REDIRECT_URI),
-    );
-
-    let agent = crate::api_client::api_agent();
-
-    let response = agent.get(&url).call().map_err(|e| match e {
+    let response = post_token(&[
+        ("grant_type", "authorization_code"),
+        ("code", code),
+        ("redirect_uri", GOG_REDIRECT_URI),
+    ])
+    .map_err(|e| match e {
         ureq::Error::StatusCode(code) => {
             format!("GOG returned error {}", code)
         }
@@ -91,19 +85,13 @@ pub fn refresh_token(refresh: &str) -> Result<(String, String), String> {
         return Err("No refresh token available. Please login again.".into());
     }
 
-    let url = format!(
-        "{}?client_id={}&client_secret={}&grant_type=refresh_token&refresh_token={}",
-        GOG_TOKEN_URL, GOG_CLIENT_ID, GOG_CLIENT_SECRET, refresh,
-    );
-
-    let agent = crate::api_client::api_agent();
-
-    let response = agent.get(&url).call().map_err(|e| match e {
-        ureq::Error::StatusCode(code) => {
-            format!("Token refresh error {}", code)
-        }
-        other => format!("Token refresh failed: {}", other),
-    })?;
+    let response = post_token(&[("grant_type", "refresh_token"), ("refresh_token", refresh)])
+        .map_err(|e| match e {
+            ureq::Error::StatusCode(code) => {
+                format!("Token refresh error {}", code)
+            }
+            other => format!("Token refresh failed: {}", other),
+        })?;
 
     let resp: TokenResponse = response
         .into_body()
@@ -115,6 +103,19 @@ pub fn refresh_token(refresh: &str) -> Result<(String, String), String> {
     }
 
     Ok((resp.access_token, resp.refresh_token))
+}
+
+/// Call the token endpoint with the parameters in a form body, so the code and
+/// the refresh token stay out of the URL (and of logs and proxies). Other GOG
+/// clients send them as GET query parameters; auth.gog.com/token accepts both.
+fn post_token(params: &[(&str, &str)]) -> Result<ureq::http::Response<ureq::Body>, ureq::Error> {
+    let client = [
+        ("client_id", GOG_CLIENT_ID),
+        ("client_secret", GOG_CLIENT_SECRET),
+    ];
+    crate::api_client::api_agent()
+        .post(GOG_TOKEN_URL)
+        .send_form(client.iter().chain(params).copied())
 }
 
 fn open_browser(url: &str) -> Result<(), String> {
