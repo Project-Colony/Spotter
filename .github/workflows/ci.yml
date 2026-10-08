@@ -52,7 +52,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build (debug)
-        run: cargo build --verbose
+        run: cargo build --locked --verbose
 
       # Same check as the release build: SignPath only signs an .exe whose
       # version resource names the project and the version (build.rs).
@@ -69,7 +69,7 @@ jobs:
           }
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --locked --verbose
 
       - name: Security audit
         run: cargo install cargo-audit --locked && cargo audit
