@@ -37,6 +37,10 @@ fn seen() -> std::sync::MutexGuard<'static, BTreeSet<&'static str>> {
     SEEN.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// Held for a whole save, so a read-back that differs means a broken keyring
+/// rather than another save running at the same time.
+static SAVING: Mutex<()> = Mutex::new(());
+
 /// Make the platform keyring the default store. Called once at startup.
 pub fn init() {
     if let Err(e) = ::keyring::Entry::store_status() {
@@ -153,6 +157,7 @@ pub fn load_profile(conn: &Connection) -> Result<UserProfile, SpotterError> {
 /// Save the profile with its secrets in the keyring and empty in the database.
 /// A secret the keyring did not take is kept in the database instead.
 pub fn save_profile(conn: &Connection, profile: &UserProfile) -> Result<(), SpotterError> {
+    let _saving = SAVING.lock().unwrap_or_else(PoisonError::into_inner);
     let mut row = profile.clone();
     for (name, value) in secrets(&mut row) {
         if write(name, value) {
@@ -220,6 +225,25 @@ mod tests {
         save_profile(&conn, &p).unwrap();
         assert_eq!(gog.get_secret().unwrap(), b"gog-refresh");
         assert!(!is_unavailable());
+
+        // Saves running at the same time do not mistake each other's values
+        // for a broken keyring.
+        std::thread::scope(|s| {
+            for t in 0..8 {
+                let (conn, p) = (db::open_at(&dir.join("spotter.db")).unwrap(), &p);
+                s.spawn(move || {
+                    for i in 0..200 {
+                        let p = UserProfile {
+                            steam_api_key: format!("steam-{}-{}", t, i),
+                            ..p.clone()
+                        };
+                        save_profile(&conn, &p).unwrap();
+                    }
+                });
+            }
+        });
+        assert!(!is_unavailable());
+        assert_eq!(in_db(&conn).steam_api_key, "");
 
         // A keyring that fails to read: nothing is deleted from it, and
         // secrets saved afterwards stay in the database.
