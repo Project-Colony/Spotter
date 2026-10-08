@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Project-Colony/Spotter/compare/v0.2.1...v0.3.0) (2026-10-08)
+
+
+### Features
+
+* keep platform tokens in the OS keyring only ([#16](https://github.com/Project-Colony/Spotter/issues/16)) ([773aba6](https://github.com/Project-Colony/Spotter/commit/773aba68e64211727491bc61da1aad72b9f61faa))
+
 ## [0.2.1](https://github.com/Project-Colony/Spotter/compare/v0.2.0...v0.2.1) (2026-08-01)
 
 
