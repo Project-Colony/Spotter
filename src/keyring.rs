@@ -10,7 +10,9 @@
 //! secrets stay in the database, unencrypted, so they are never lost; the
 //! Profile page says so.
 
+use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use keyring_core::{Entry, Error};
 use rusqlite::Connection;
@@ -25,6 +27,15 @@ const SERVICE: &str = "spotter";
 /// leaves the keyring alone: secrets are saved to the database, and nothing
 /// is deleted from a keyring whose contents could not be read.
 static UNAVAILABLE: AtomicBool = AtomicBool::new(false);
+
+/// The secrets this session read from the keyring or stored in it. Only these
+/// are ever deleted: a locked store can answer "no entry" (KeePassXC does), and
+/// the empty value loaded then must not delete the real one on a later save.
+static SEEN: Mutex<BTreeSet<&'static str>> = Mutex::new(BTreeSet::new());
+
+fn seen() -> std::sync::MutexGuard<'static, BTreeSet<&'static str>> {
+    SEEN.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// Make the platform keyring the default store. Called once at startup.
 pub fn init() {
@@ -70,11 +81,14 @@ fn entry(name: &str) -> Option<Entry> {
 }
 
 /// The stored secret ("" when there is none), or `None` if it cannot be read.
-fn read(name: &str) -> Option<String> {
+fn read(name: &'static str) -> Option<String> {
     match entry(name)?.get_secret() {
-        Ok(bytes) => String::from_utf8(bytes)
-            .map_err(|e| unavailable(&format!("read {}", name), e))
-            .ok(),
+        Ok(bytes) => {
+            seen().insert(name);
+            String::from_utf8(bytes)
+                .map_err(|e| unavailable(&format!("read {}", name), e))
+                .ok()
+        }
         Err(Error::NoEntry) => Some(String::new()),
         Err(e) => {
             unavailable(&format!("read {}", name), e);
@@ -83,9 +97,13 @@ fn read(name: &str) -> Option<String> {
     }
 }
 
-/// Make the keyring hold `secret` (an empty one deletes the entry), and only
-/// report success once reading it back returns that same value.
-fn write(name: &str, secret: &str) -> bool {
+/// Make the keyring hold `secret` (an empty one deletes the entry, if this
+/// session saw it), and only report success once reading it back returns that
+/// same value.
+fn write(name: &'static str, secret: &str) -> bool {
+    if secret.is_empty() && !seen().contains(name) {
+        return true;
+    }
     if read(name).as_deref() == Some(secret) {
         return true;
     }
@@ -190,6 +208,18 @@ mod tests {
         assert_eq!(p.steam_api_key, "");
         assert_eq!(p.xbox_api_key, "xbox-key");
         assert_eq!(p.gog_refresh_token, "gog-refresh");
+
+        // A new session whose locked keyring answers "no entry": the secret
+        // loads empty, and a save does not delete it.
+        seen().clear();
+        let gog = Entry::new(SERVICE, "gog_refresh_token").unwrap();
+        let cred: &mock::Cred = gog.as_any().downcast_ref().unwrap();
+        cred.set_error(Error::NoEntry);
+        let p = load_profile(&conn).unwrap();
+        assert_eq!(p.gog_refresh_token, "");
+        save_profile(&conn, &p).unwrap();
+        assert_eq!(gog.get_secret().unwrap(), b"gog-refresh");
+        assert!(!is_unavailable());
 
         // A keyring that fails to read: nothing is deleted from it, and
         // secrets saved afterwards stay in the database.
