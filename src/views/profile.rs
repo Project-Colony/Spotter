@@ -39,6 +39,11 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         profile_card,
         row![steam_note, gog_note, epic_note].spacing(12),
         row![xbox_note, psn_note].spacing(12),
+        crate::keyring::is_unavailable().then(|| {
+            text("No system keyring available: platform tokens are stored unencrypted in the database.")
+                .size(12)
+                .color(theme::ACCENT_GOLD)
+        }),
         data_card,
     ]
     .spacing(16)

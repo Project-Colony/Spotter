@@ -173,23 +173,6 @@ pub fn refresh_token(refresh: &str) -> Result<EpicLoginResult, String> {
     ))
 }
 
-/// Verify that an access token is still valid.
-/// Returns the account_id if valid, or an error if expired/invalid.
-#[allow(dead_code)]
-pub fn verify_token(token: &str) -> Result<String, String> {
-    let url = format!("{}/account/api/oauth/verify", EPIC_OAUTH_HOST);
-    let agent = crate::api_client::api_agent();
-
-    let body = crate::api_client::http_get_bearer(&agent, &url, token, 0)?;
-    let val: serde_json::Value =
-        serde_json::from_str(&body).map_err(|e| format!("Verify parse error: {}", e))?;
-
-    val.get("account_id")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
-        .ok_or_else(|| "Token verification failed: no account_id".into())
-}
-
 /// Base64-encode the client_id:client_secret pair for HTTP Basic auth.
 fn basic_auth() -> String {
     use std::io::Write;

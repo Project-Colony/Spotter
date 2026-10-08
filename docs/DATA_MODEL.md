@@ -171,6 +171,8 @@ CREATE TABLE playtime_history (
 
 Single-row table (id = 1) storing `UserProfile` fields as individual columns.
 
+The credential columns (`steam_api_key`, `gog_token`, `gog_refresh_token`, `xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) stay empty: `keyring.rs` keeps those secrets in the OS keyring. They hold a value, unencrypted, only when no keyring is usable, and `keyring.rs` moves it to the keyring on a later start.
+
 ### settings
 
 Single-row table (id = 1) storing JSON-serialized `Settings` struct.

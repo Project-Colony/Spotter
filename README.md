@@ -78,6 +78,7 @@ src/
   lib.rs           Public module exports for tests
   app.rs           Application state, messages, update loop
   db.rs            SQLite database operations
+  keyring.rs       Platform tokens in the OS keyring
   models.rs        Data structures (Game, Platform, Settings, etc.)
   theme.rs         Color constants and ViewTheme
   steam.rs         Steam import + HTML scraping
@@ -99,6 +100,7 @@ All data is stored locally:
 - **Covers**: `~/.local/share/spotter/covers/`
 - **Achievement icons**: `~/.local/share/spotter/achievement_icons/`
 - **Settings**: Stored as JSON inside the SQLite database
+- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they stay unencrypted in the database and the Profile page says so.
 
 ## Code signing policy
 
@@ -113,7 +115,7 @@ Team roles and members:
 
 ### Privacy policy
 
-Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Spotter only contacts the services below, for the features that need them:
+Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in the local database instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
 
 - **Imports, when you start one** from the Import screen. Spotter contacts the platform you picked and sends it the credentials you entered for it, plus the ids of your games:
   - Steam: `api.steampowered.com` (your Web API key and Steam ID, to list owned games), `steamcommunity.com` (your Steam ID, to read achievements from your profile) and `store.steampowered.com` (game details).

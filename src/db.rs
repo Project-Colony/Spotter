@@ -85,9 +85,12 @@ fn open_inner(
     use_migration_flag: bool,
 ) -> Result<Connection, SpotterError> {
     let conn = Connection::open(path)?;
+    // secure_delete zeroes overwritten data, so a token moved to the OS
+    // keyring does not linger in the file's free space.
     conn.execute_batch(
         "PRAGMA foreign_keys = ON;
-         PRAGMA journal_mode = WAL;",
+         PRAGMA journal_mode = WAL;
+         PRAGMA secure_delete = ON;",
     )?;
     if use_migration_flag {
         // Check MIGRATED flag but also verify tables exist (handles fresh databases
@@ -151,14 +154,11 @@ fn init_tables(conn: &Connection) -> Result<(), SpotterError> {
             FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
         );
 
-        -- Credentials are stored as plaintext in the local SQLite database.
-        -- This is a deliberate design choice for a desktop application where:
-        --   1. The database is only accessible to the local OS user
-        --   2. OS-level keychain integration (via the `keyring` crate) would add
-        --      complexity and platform-specific failure modes
-        --   3. The stored tokens (Steam API key, GOG OAuth tokens, Xbox API key,
-        --      PSN NPSSO cookie) are user-provided and scoped to read-only game data
-        -- Future improvement: integrate with the OS keyring for sensitive fields.
+        -- The credential columns (steam_api_key, gog_token, gog_refresh_token,
+        -- xbox_api_key, psn_npsso, epic_token, epic_refresh_token) are empty:
+        -- keyring.rs keeps those secrets in the OS keyring. A value here is
+        -- unencrypted: saved by Spotter 0.2 or while no keyring was usable, and
+        -- keyring.rs moves it to the keyring on a later start.
         CREATE TABLE IF NOT EXISTS user_profile (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             username TEXT DEFAULT 'Player',
@@ -478,6 +478,8 @@ pub fn delete_game(conn: &Connection, game_id: i64) -> Result<(), SpotterError> 
     Ok(())
 }
 
+/// The profile row as stored, without the credentials the OS keyring holds.
+/// The app loads it through `keyring::load_profile`.
 pub fn load_profile(conn: &Connection) -> Result<UserProfile, SpotterError> {
     let mut stmt = conn.prepare(
         "SELECT username, avatar_path, steam_api_key, steam_id, gog_token,
@@ -520,6 +522,8 @@ pub fn load_profile(conn: &Connection) -> Result<UserProfile, SpotterError> {
     }
 }
 
+/// Write the profile row as given. The app saves through `keyring::save_profile`,
+/// which empties the credentials the OS keyring took.
 pub fn save_profile(conn: &Connection, profile: &UserProfile) -> Result<(), SpotterError> {
     conn.execute(
         "INSERT INTO user_profile (id, username, avatar_path, steam_api_key, steam_id, gog_token,

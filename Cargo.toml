@@ -17,6 +17,8 @@ thiserror = "2"
 csv = "1"
 scraper = "0.27"
 keyring = "4"
+# The `Entry` that keyring 4 builds on, and its mock store for tests.
+keyring-core = "1"
 
 [build-dependencies]
 # Windows version resource (ProductName, ProductVersion) for code signing.

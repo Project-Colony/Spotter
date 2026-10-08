@@ -508,8 +508,7 @@ impl Spotter {
         crate::app::spawn_task(
             move || {
                 let conn = db::open()?;
-                db::save_profile(&conn, &profile)?;
-                crate::keyring::store_profile_secrets(&profile);
+                crate::keyring::save_profile(&conn, &profile)?;
                 Ok(())
             },
             Message::ProfileSaved,
@@ -522,8 +521,7 @@ impl Spotter {
         crate::app::spawn_task(
             move || {
                 let conn = db::open()?;
-                db::save_profile(&conn, &profile)?;
-                crate::keyring::store_profile_secrets(&profile);
+                crate::keyring::save_profile(&conn, &profile)?;
                 Ok(())
             },
             Message::ProfileAutoSaved,
