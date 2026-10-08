@@ -18,6 +18,10 @@ csv = "1"
 scraper = "0.22"
 keyring = "3"
 
+[build-dependencies]
+# Windows version resource (ProductName, ProductVersion) for code signing.
+winresource = { version = "0.1", default-features = false }
+
 [profile.release]
 lto = "thin"
 strip = "symbols"
