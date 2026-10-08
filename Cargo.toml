@@ -16,7 +16,7 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
 csv = "1"
 scraper = "0.22"
-keyring = "3"
+keyring = "4"
 
 [profile.release]
 lto = "thin"
