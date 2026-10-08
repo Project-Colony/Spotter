@@ -1247,9 +1247,8 @@ where
 fn load_data() -> Result<LoadResult, String> {
     let conn = db::open()?;
     let games = db::load_games(&conn)?;
-    let mut profile = db::load_profile(&conn)?;
-    // Overlay credentials from the OS keyring (takes precedence over DB values).
-    crate::keyring::load_profile_secrets(&mut profile);
+    crate::keyring::init();
+    let profile = crate::keyring::load_profile(&conn)?;
     let playtime = db::get_daily_playtime(&conn, 30)?;
     let settings = db::load_settings(&conn)?;
     Ok((games, profile, playtime, settings))
