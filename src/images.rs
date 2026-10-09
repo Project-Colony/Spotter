@@ -6,6 +6,11 @@ use std::path::PathBuf;
 const MAX_IMAGE_SIZE: u64 = 10_000_000;
 
 pub fn cover_path(game_title: &str) -> PathBuf {
+    db::covers_dir().join(cover_file_name(game_title))
+}
+
+/// File name of a game's cached cover, derived from its title.
+fn cover_file_name(game_title: &str) -> String {
     let safe_name: String = game_title
         .chars()
         .map(|c| {
@@ -23,13 +28,19 @@ pub fn cover_path(game_title: &str) -> PathBuf {
         .to_lowercase();
     // Truncate overly long names (Windows MAX_PATH safety) while keeping uniqueness
     let truncated = if safe_name.len() > 120 {
+        // Keep at most 100 bytes, cut on a character boundary so a non-Latin
+        // title cannot split a character in half.
+        let mut end = 100;
+        while !safe_name.is_char_boundary(end) {
+            end -= 1;
+        }
         // Use a simple hash suffix to prevent collisions on truncation
         let hash = simple_hash(game_title);
-        format!("{}_{:x}", &safe_name[..100], hash)
+        format!("{}_{:x}", &safe_name[..end], hash)
     } else {
         safe_name
     };
-    db::covers_dir().join(format!("{}.jpg", truncated))
+    format!("{}.jpg", truncated)
 }
 
 /// Simple non-cryptographic hash for filename deduplication.
@@ -184,4 +195,29 @@ pub fn download_achievement_icons_minimal(appid: u32, icons: &[(String, String, 
         let _ = download_icon(icon_gray_url, &gray_path);
     }
     count
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn long_ascii_cover_names_are_unchanged() {
+        let title = "a".repeat(130);
+        let expected = format!("{}_{:x}.jpg", "a".repeat(100), simple_hash(&title));
+        assert_eq!(cover_file_name(&title), expected);
+    }
+
+    #[test]
+    fn long_non_latin_cover_names_are_cut_on_a_character_boundary() {
+        // 41 three-byte characters: 123 bytes, and byte 100 falls inside the 34th.
+        let title = "\u{30B2}".repeat(20) + &"\u{65E5}".repeat(21);
+        assert_eq!(title.len(), 123);
+        let name = cover_file_name(&title);
+        let stem = name.strip_suffix(".jpg").unwrap();
+        let (kept, hash) = stem.rsplit_once('_').unwrap();
+        assert!(kept.len() <= 100, "kept {} bytes", kept.len());
+        assert!(title.starts_with(kept));
+        assert_eq!(hash, format!("{:x}", simple_hash(&title)));
+    }
 }

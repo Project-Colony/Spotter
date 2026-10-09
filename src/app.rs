@@ -160,6 +160,9 @@ pub struct Spotter {
     pub error_message: Option<String>,
     pub success_message: Option<String>,
     pub data_loaded: bool,
+    /// The startup load failed: the app holds defaults instead of the saved
+    /// data, so every write is refused (see `spawn_write`).
+    pub load_failed: bool,
     pub steam_login_active: bool,
     pub gog_login_active: bool,
     pub gog_code_input: String,
@@ -227,6 +230,7 @@ impl Default for Spotter {
             error_message: None,
             success_message: None,
             data_loaded: false,
+            load_failed: false,
             steam_login_active: false,
             gog_login_active: false,
             gog_code_input: String::new(),
@@ -492,7 +496,7 @@ impl Spotter {
                 if !ids_to_delete.is_empty() {
                     self.recently_deleted
                         .retain(|(_, did)| !ids_to_delete.contains(did));
-                    return spawn_task(
+                    return self.spawn_write(
                         move || {
                             let conn = db::open()?;
                             for del_id in ids_to_delete {
