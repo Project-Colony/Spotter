@@ -1267,10 +1267,28 @@ pub fn run() -> iced::Result {
         .font(include_bytes!("../assets/fonts/JetBrainsMonoNerdFont-Bold.ttf").as_slice())
         .default_font(iced::Font::with_name("JetBrainsMono NF"))
         .scale_factor(|app: &Spotter| app.settings.ui_scale.factor())
+        .window(iced::window::Settings {
+            icon: window_icon(),
+            ..Default::default()
+        })
         .run()
+}
+
+/// Spotter's icon for the title bar and the taskbar. A broken image only
+/// costs the icon, never the start-up.
+fn window_icon() -> Option<iced::window::Icon> {
+    iced::window::icon::from_file_data(include_bytes!("../assets/icons/icon.png"), None).ok()
 }
 
 fn boot() -> (Spotter, Task<Message>) {
     let load_task = spawn_task(load_data, |r| Message::DataLoaded(Box::new(r)));
     (Spotter::default(), load_task)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn embedded_window_icon_decodes() {
+        assert!(super::window_icon().is_some());
+    }
 }
