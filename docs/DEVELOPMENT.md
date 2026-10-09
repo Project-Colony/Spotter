@@ -3,7 +3,9 @@
 ## Prerequisites
 
 - **Rust** 1.90+ (2021 edition)
-- No external system dependencies (SQLite is bundled via `rusqlite`)
+- SQLite is bundled via `rusqlite`, nothing to install for it
+- On Linux, the windowing and keyring development packages (Debian/Ubuntu names):
+  `pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libwayland-dev libdbus-1-dev libsecret-1-dev`
 
 ## Build
 
