@@ -2,8 +2,10 @@
 
 ## Prerequisites
 
-- **Rust** 1.75+ (2021 edition)
-- No external system dependencies (SQLite is bundled via `rusqlite`)
+- **Rust** 1.90+ (2021 edition)
+- SQLite is bundled via `rusqlite`, nothing to install for it
+- On Linux, the windowing and keyring development packages (Debian/Ubuntu names):
+  `pkg-config libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libwayland-dev libdbus-1-dev libsecret-1-dev`
 
 ## Build
 
@@ -134,7 +136,7 @@ Use `ViewTheme::from_settings()` at the top of each view function. For style clo
 
 The following `dead_code` warnings are expected and can be ignored:
 
-- `save_single_game` — utility function reserved for future single-game save
-- `export_games_json` / `export_games_csv` — called via message dispatch, not detected by static analysis
-- `error::Result` — alias for future `SpotterError` migration
-- Various `GameBuilder` methods — available for test convenience
+- `save_single_game`: utility function reserved for future single-game save
+- `export_games_json` / `export_games_csv`: called via message dispatch, not detected by static analysis
+- `error::Result`: alias for future `SpotterError` migration
+- Various `GameBuilder` methods: available for test convenience
