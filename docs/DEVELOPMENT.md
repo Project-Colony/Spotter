@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Rust** 1.75+ (2021 edition)
+- **Rust** 1.90+ (2021 edition)
 - No external system dependencies (SQLite is bundled via `rusqlite`)
 
 ## Build

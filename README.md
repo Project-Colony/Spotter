@@ -35,7 +35,7 @@ Each asset has a matching `.sig` file, an ed25519 signature made with the Projec
 
 ## Building
 
-Requires Rust 1.75+ (2021 edition).
+Requires Rust 1.90+ (2021 edition).
 
 ```bash
 cargo build --release
