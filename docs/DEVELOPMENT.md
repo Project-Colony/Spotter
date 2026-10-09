@@ -136,7 +136,7 @@ Use `ViewTheme::from_settings()` at the top of each view function. For style clo
 
 The following `dead_code` warnings are expected and can be ignored:
 
-- `save_single_game` — utility function reserved for future single-game save
-- `export_games_json` / `export_games_csv` — called via message dispatch, not detected by static analysis
-- `error::Result` — alias for future `SpotterError` migration
-- Various `GameBuilder` methods — available for test convenience
+- `save_single_game`: utility function reserved for future single-game save
+- `export_games_json` / `export_games_csv`: called via message dispatch, not detected by static analysis
+- `error::Result`: alias for future `SpotterError` migration
+- Various `GameBuilder` methods: available for test convenience
