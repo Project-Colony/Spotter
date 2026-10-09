@@ -314,6 +314,16 @@ fn parse_iso_datetime(s: &str) -> Option<u64> {
     None
 }
 
+/// Shorten a store description to at most 500 characters, "..." included.
+fn truncate_description(desc: &str) -> String {
+    if desc.chars().count() > 500 {
+        let head: String = desc.chars().take(497).collect();
+        format!("{}...", head)
+    } else {
+        desc.to_string()
+    }
+}
+
 /// Fetch metadata from the OpenXBL marketplace for a batch of title IDs.
 fn fetch_marketplace_details(
     api_key: &str,
@@ -369,13 +379,7 @@ fn fetch_marketplace_details(
                 if !lp.short_description.is_empty() {
                     lp.short_description.clone()
                 } else {
-                    // Truncate long descriptions
-                    let desc = &lp.product_description;
-                    if desc.len() > 500 {
-                        format!("{}...", &desc[..497])
-                    } else {
-                        desc.clone()
-                    }
+                    truncate_description(&lp.product_description)
                 }
             })
             .unwrap_or_default();
@@ -655,4 +659,25 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
 
     let xuid_result = if xuid.is_empty() { None } else { Some(xuid) };
     Ok((games, xuid_result))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_descriptions_are_kept_whole() {
+        // 300 characters but 900 bytes: under the limit, so no "...".
+        let desc = "\u{65E5}".repeat(300);
+        assert_eq!(truncate_description(&desc), desc);
+    }
+
+    #[test]
+    fn long_multi_byte_descriptions_are_cut_by_characters() {
+        // Byte 497 falls inside a character here.
+        let desc = "\u{00E9}".repeat(600);
+        let short = truncate_description(&desc);
+        assert_eq!(short.chars().count(), 500);
+        assert_eq!(short, "\u{00E9}".repeat(497) + "...");
+    }
 }

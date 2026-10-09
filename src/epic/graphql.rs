@@ -107,14 +107,12 @@ pub(super) fn graphql_post(
         })
         .ok()?;
 
+    // Log the first 200 characters, cut on a character boundary.
+    let preview_end = body.char_indices().nth(200).map_or(body.len(), |(i, _)| i);
     eprintln!(
         "[epic] GraphQL response for ns={}: {}",
         namespace,
-        if body.len() > 200 {
-            &body[..200]
-        } else {
-            &body
-        }
+        &body[..preview_end]
     );
 
     serde_json::from_str(&body)

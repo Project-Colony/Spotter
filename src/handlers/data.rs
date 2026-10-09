@@ -10,6 +10,9 @@ use crate::app::{Message, Spotter};
 use crate::db;
 use crate::models::*;
 
+/// Error every write reports after a failed startup load.
+const NOT_LOADED: &str = "your saved data was not loaded, so changes are not saved";
+
 impl Spotter {
     // ── Data loading ──
 
@@ -77,7 +80,11 @@ impl Spotter {
                 }
             }
             Err(e) => {
-                self.show_error(format!("Load error: {}", e));
+                self.load_failed = true;
+                self.show_error(format!(
+                    "Your saved data was not loaded ({}). Nothing will be saved until Spotter restarts and loads it.",
+                    e
+                ));
             }
         }
         Task::none()
@@ -87,7 +94,7 @@ impl Spotter {
 
     pub(crate) fn handle_export_json(&mut self) -> Task<Message> {
         match db::export_games_json_from_slice(&self.games) {
-            Ok(json) => crate::app::spawn_task(
+            Ok(json) => self.spawn_write(
                 move || {
                     let export_path = db::exports_dir().join("spotter_export.json");
                     std::fs::write(&export_path, &json)
@@ -105,7 +112,7 @@ impl Spotter {
 
     pub(crate) fn handle_export_csv(&mut self) -> Task<Message> {
         match db::export_games_csv_from_slice(&self.games) {
-            Ok(csv) => crate::app::spawn_task(
+            Ok(csv) => self.spawn_write(
                 move || {
                     let export_path = db::exports_dir().join("spotter_export.csv");
                     std::fs::write(&export_path, &csv)
@@ -232,7 +239,7 @@ impl Spotter {
 
                 // Auto-backup after import
                 let backup_task = match db::export_games_json_from_slice(&self.games) {
-                    Ok(json) => crate::app::spawn_task(
+                    Ok(json) => self.spawn_write(
                         move || {
                             let path = db::exports_dir().join("spotter_auto_backup.json");
                             std::fs::write(&path, &json)
@@ -502,10 +509,29 @@ impl Spotter {
 
     // ── Persistence helpers ──
 
+    /// Run a background task that writes saved data, like `spawn_task`.
+    /// After a failed startup load the app holds defaults rather than the
+    /// user's data, and writing them would overwrite what is on disk, so the
+    /// write is skipped and reported to `msg` as an error instead.
+    pub(crate) fn spawn_write<T, F>(
+        &self,
+        f: F,
+        msg: impl FnOnce(Result<T, String>) -> Message + Send + 'static,
+    ) -> Task<Message>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> Result<T, String> + Send + 'static,
+    {
+        if self.load_failed {
+            return Task::done(msg(Err(NOT_LOADED.into())));
+        }
+        crate::app::spawn_task(f, msg)
+    }
+
     /// Save profile to database and OS keyring in a background thread.
     pub(crate) fn save_profile_task(&self) -> Task<Message> {
         let profile = self.profile.clone();
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let conn = db::open()?;
                 crate::keyring::save_profile(&conn, &profile)?;
@@ -518,7 +544,7 @@ impl Spotter {
     /// Silently persist the profile to the database and OS keyring (no success toast).
     pub(crate) fn persist_profile(&self) -> Task<Message> {
         let profile = self.profile.clone();
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let conn = db::open()?;
                 crate::keyring::save_profile(&conn, &profile)?;
@@ -531,7 +557,7 @@ impl Spotter {
     /// Persist settings to the database.
     pub(crate) fn persist_settings(&self) -> Task<Message> {
         let settings = self.settings.clone();
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let conn = db::open()?;
                 db::save_settings(&conn, &settings)?;
@@ -552,7 +578,7 @@ impl Spotter {
                 return Task::none();
             }
         };
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let games: Vec<Game> =
                     serde_json::from_slice(&json).map_err(|e| format!("Deserialize: {}", e))?;
@@ -576,7 +602,7 @@ impl Spotter {
                 return Task::none();
             }
         };
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let mut games: Vec<Game> =
                     serde_json::from_slice(&json).map_err(|e| format!("Deserialize: {}", e))?;
@@ -606,7 +632,7 @@ impl Spotter {
     /// Persist a single game to the database by its ID.
     pub(crate) fn persist_single_game(&self, game_id: i64) -> Task<Message> {
         if let Some(game) = self.games.iter().find(|g| g.id == Some(game_id)).cloned() {
-            crate::app::spawn_task(
+            self.spawn_write(
                 move || {
                     let conn = db::open()?;
                     db::save_game(&conn, &game)?;
@@ -622,5 +648,48 @@ impl Spotter {
     /// Schedule a delayed DrainImportQueue message.
     pub(crate) fn cascade_delay(ms: u64) -> Task<Message> {
         crate::app::delay_task(ms, || Message::DrainImportQueue)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+
+    /// Calls `spawn_write` with a write that must never run and returns what
+    /// was reported to the result callback right away.
+    fn reported_now(app: &Spotter) -> Option<Result<(), String>> {
+        let seen = Arc::new(Mutex::new(None));
+        let sink = Arc::clone(&seen);
+        let _task = app.spawn_write(
+            || -> Result<(), String> { panic!("write ran") },
+            move |r: Result<(), String>| {
+                *sink.lock().unwrap() = Some(r.clone());
+                Message::DataSaved(r)
+            },
+        );
+        let mut reported = seen.lock().unwrap();
+        reported.take()
+    }
+
+    #[test]
+    fn failed_load_refuses_every_write() {
+        let mut app = Spotter::default();
+        let _ = app.handle_data_loaded(Box::new(Err("database is locked".into())));
+
+        assert!(app.data_loaded);
+        assert!(app.load_failed);
+        let toast = app.error_message.as_deref().unwrap();
+        assert!(toast.contains("not loaded"), "{toast}");
+        assert!(toast.contains("database is locked"), "{toast}");
+        assert_eq!(reported_now(&app), Some(Err(NOT_LOADED.to_string())));
+    }
+
+    #[test]
+    fn writes_run_normally_when_nothing_failed() {
+        let app = Spotter::default();
+        assert!(!app.load_failed);
+        // The write is handed to a background task, so nothing is reported yet.
+        assert_eq!(reported_now(&app), None);
     }
 }

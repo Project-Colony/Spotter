@@ -94,3 +94,7 @@ Reusable style functions in `theme.rs`:
 ## Settings Schema Versioning
 
 Settings include a `version` field (currently `1`) with `#[serde(default)]` on newer fields. This allows older settings JSON to deserialize without breaking, with new fields taking their defaults.
+
+`db::load_settings` also reads the stored JSON one field at a time when the whole struct does not parse: a value this build does not accept (for example a theme added by a newer version) falls back to that field's default, and every other setting keeps its stored value.
+
+If the startup load fails anyway, Spotter shows an error and runs on defaults, and refuses every write of saved data for the rest of the session: settings, profile and game saves, deletions, exports and the auto-backup are all refused (`Spotter::spawn_write`), so the data on disk stays as it was.

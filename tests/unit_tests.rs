@@ -474,6 +474,69 @@ fn error_converts_to_string() {
 // ───── Settings versioning tests ─────
 
 #[test]
+fn db_settings_unknown_value_falls_back_per_field() {
+    let (tmp, conn) = setup_test_db();
+
+    // A theme and an accent this build does not know (as a newer version could
+    // write), next to valid values that must survive.
+    let mut stored = serde_json::to_value(spotter::models::Settings {
+        compact_list: true,
+        high_contrast: true,
+        sidebar_width: 300,
+        ui_scale: spotter::models::UiScale::Large,
+        ..Default::default()
+    })
+    .unwrap();
+    stored["theme_mode"] = "Oled".into();
+    stored["accent_color"] = serde_json::json!(42);
+    conn.execute(
+        "INSERT INTO settings (id, data) VALUES (1, ?1)",
+        [stored.to_string()],
+    )
+    .unwrap();
+
+    let loaded = spotter::db::load_settings(&conn).expect("one bad field must not fail the load");
+    assert_eq!(loaded.theme_mode, spotter::models::ThemeMode::Dark);
+    assert_eq!(loaded.accent_color, spotter::models::AccentColor::Blue);
+    assert!(loaded.compact_list);
+    assert!(loaded.high_contrast);
+    assert_eq!(loaded.sidebar_width, 300);
+    assert_eq!(loaded.ui_scale, spotter::models::UiScale::Large);
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn db_settings_missing_required_field_keeps_the_rest() {
+    let (tmp, conn) = setup_test_db();
+    // Old row without theme_mode, which has no serde default of its own.
+    conn.execute(
+        "INSERT INTO settings (id, data) VALUES (1, ?1)",
+        [r#"{"compact_list":true,"start_screen":"Statistics"}"#],
+    )
+    .unwrap();
+
+    let loaded = spotter::db::load_settings(&conn).unwrap();
+    assert_eq!(loaded.theme_mode, spotter::models::ThemeMode::Dark);
+    assert!(loaded.compact_list);
+    assert_eq!(
+        loaded.start_screen,
+        spotter::models::StartScreen::Statistics
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn db_settings_unreadable_json_is_an_error() {
+    let (tmp, conn) = setup_test_db();
+    conn.execute("INSERT INTO settings (id, data) VALUES (1, 'not json')", [])
+        .unwrap();
+    assert!(spotter::db::load_settings(&conn).is_err());
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
 fn settings_default_has_version() {
     let s = spotter::models::Settings::default();
     assert_eq!(s.version, spotter::models::SETTINGS_VERSION);

@@ -659,9 +659,33 @@ pub fn load_settings(conn: &Connection) -> Result<Settings, SpotterError> {
     let result = stmt.query_row([], |row| row.get::<_, String>(0));
 
     match result {
-        Ok(json) => serde_json::from_str(&json).map_err(Into::into),
+        Ok(json) => parse_settings(&json),
         Err(_) => Ok(Settings::default()),
     }
+}
+
+/// Parse stored settings one field at a time: a field whose value this build
+/// does not accept (for example a theme added by a newer version) keeps its
+/// default, so one bad value never discards the other settings.
+fn parse_settings(json: &str) -> Result<Settings, SpotterError> {
+    use serde::Deserialize;
+
+    if let Ok(settings) = serde_json::from_str(json) {
+        return Ok(settings);
+    }
+    let stored: serde_json::Map<String, serde_json::Value> = serde_json::from_str(json)?;
+    let mut merged = serde_json::to_value(Settings::default())?;
+    for (key, value) in stored {
+        let Some(slot) = merged.get_mut(&key) else {
+            continue;
+        };
+        let previous = std::mem::replace(slot, value);
+        if Settings::deserialize(&merged).is_err() {
+            eprintln!("[db] Ignoring invalid stored setting {:?}", key);
+            merged[&key] = previous;
+        }
+    }
+    Ok(Settings::deserialize(&merged)?)
 }
 
 /// Save application settings as JSON.

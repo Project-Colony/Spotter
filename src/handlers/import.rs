@@ -339,7 +339,7 @@ impl Spotter {
         );
         self.invalidate_filter_cache();
 
-        crate::app::spawn_task(
+        self.spawn_write(
             move || {
                 let conn = db::open()?;
                 for id in &junk_ids {
