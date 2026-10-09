@@ -1,6 +1,7 @@
 {
+  "$schema": "https://raw.githubusercontent.com/Project-Colony/Project-Colony-Resources/main/generated/colony.schema.json",
   "name": "Spotter",
-  "category": "Games",
+  "category": "game",
   "icon": "assets/icons/icon.png",
   "platforms": [
     "windows",
