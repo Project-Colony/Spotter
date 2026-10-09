@@ -61,7 +61,7 @@ The following areas lack test coverage:
 ```
 src/
 ├── main.rs              # Entry point
-├── lib.rs               # Public API for integration tests
+├── lib.rs               # Module tree; public API for integration tests
 ├── app.rs               # Core state machine (~1300 lines)
 ├── models.rs            # All data structures (~800 lines)
 ├── db.rs                # SQLite operations
