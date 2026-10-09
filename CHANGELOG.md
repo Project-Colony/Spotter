@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.0](https://github.com/Project-Colony/Spotter/compare/v0.3.0...v0.4.0) (2026-10-09)
+
+
+### Features
+
+* show Spotter's icon on the window and the Windows executable ([#28](https://github.com/Project-Colony/Spotter/issues/28)) ([e16073e](https://github.com/Project-Colony/Spotter/commit/e16073e1eb365b370596c33642bee6cd4a273987))
+
+
+### Fixes
+
+* list Spotter under the canonical game category ([#25](https://github.com/Project-Colony/Spotter/issues/25)) ([93139c1](https://github.com/Project-Colony/Spotter/commit/93139c1b098dcdb264ce5c49c5ede59aeb9c47a7))
+* stop crashing on long non-Latin game titles and never overwrite data after a failed load ([#20](https://github.com/Project-Colony/Spotter/issues/20)) ([6d3d002](https://github.com/Project-Colony/Spotter/commit/6d3d0027499b5e86a842c6f9e2be23cb2a123b5e))
+
+
+### Internals
+
+* flatten the single-file Xbox and PlayStation modules ([#26](https://github.com/Project-Colony/Spotter/issues/26)) ([7552f54](https://github.com/Project-Colony/Spotter/commit/7552f54ecfe5ee632c96271cddc8776b8c2a5265))
+
 ## [0.3.0](https://github.com/Project-Colony/Spotter/compare/v0.2.1...v0.3.0) (2026-10-08)
 
 
