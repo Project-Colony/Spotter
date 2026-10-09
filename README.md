@@ -75,7 +75,7 @@ Single-threaded execution is required because database tests use shared environm
 ```
 src/
   main.rs          Entry point
-  lib.rs           Public module exports for tests
+  lib.rs           Module tree; public modules for tests
   app.rs           Application state, messages, update loop
   db.rs            SQLite database operations
   keyring.rs       Platform tokens in the OS keyring

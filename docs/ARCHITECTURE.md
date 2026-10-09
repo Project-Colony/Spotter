@@ -5,7 +5,8 @@ Spotter is a cross-platform game library tracker built with **Rust** and the **I
 ## Module Map
 
 ```
-main.rs                 Entry point → app::run()
+main.rs                 Entry point → spotter::run()
+lib.rs                  Module tree, re-exports app::run
 app.rs (1300+ lines)    State machine: Spotter struct, Message enum, update(), view()
 ├── views/
 │   ├── library.rs      Game list with search, filters, sort
