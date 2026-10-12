@@ -88,13 +88,14 @@ fn import_status_banner<'a>(app: &'a Spotter) -> Element<'a, Message> {
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        let dots = match (std::time::SystemTime::now()
+        // The dots move between frames: an animation, so still without effects.
+        let phase = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis()
-            / 500)
-            % 4
-        {
+            / 500;
+        let dots = match phase % 4 {
+            _ if !colony_ui::effects_enabled() => "...",
             0 => ".",
             1 => "..",
             2 => "...",

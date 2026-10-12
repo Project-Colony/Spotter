@@ -268,7 +268,13 @@ impl Spotter {
 
                     self.import_status = format!("{}: importing {} games...", platform, added);
 
-                    let drain = Self::cascade_delay(30);
+                    // The cascade is an animation: with effects off or reduced
+                    // motion on, every new game lands at once.
+                    let drain = if colony_ui::effects_enabled() {
+                        Self::cascade_delay(30)
+                    } else {
+                        self.handle_drain_import_queue()
+                    };
                     Task::batch([save, drain, backup_task])
                 } else {
                     self.import_status =
@@ -307,7 +313,9 @@ impl Spotter {
 
         // Adaptive batch size: larger batches for big queues so 1 600-game imports
         // finish in seconds instead of minutes.
-        let batch = if remaining_before > 500 {
+        let batch = if !colony_ui::effects_enabled() {
+            remaining_before
+        } else if remaining_before > 500 {
             50
         } else if remaining_before > 200 {
             25
@@ -688,6 +696,43 @@ mod tests {
         assert!(toast.contains("not loaded"), "{toast}");
         assert!(toast.contains("database is locked"), "{toast}");
         assert_eq!(reported_now(&app), Some(Err(NOT_LOADED.to_string())));
+    }
+
+    #[test]
+    fn without_effects_an_import_lands_at_once() {
+        let game = |title: &str| Game {
+            id: None,
+            title: title.into(),
+            platform: crate::models::Platform::Steam,
+            playtime_minutes: 0,
+            achievements_unlocked: 0,
+            achievements_total: 0,
+            status: crate::models::GameStatus::Unplayed,
+            rating: None,
+            genre: String::new(),
+            last_played: String::new(),
+            cover_url: String::new(),
+            steam_appid: None,
+            gog_id: None,
+            epic_id: None,
+            xbox_id: None,
+            psn_id: None,
+            notes: String::new(),
+            description: String::new(),
+            release_date: String::new(),
+            review_percent: None,
+            tags: String::new(),
+        };
+        let mut app = Spotter::default();
+
+        // Effects are a process-wide switch; no other test reads it.
+        colony_ui::set_effects(false);
+        let _ = app.handle_import_result("Steam", Ok(vec![game("A"), game("B"), game("C")]));
+        colony_ui::set_effects(true);
+
+        assert!(app.import_queue.is_empty());
+        assert_eq!(app.games.len(), 3);
+        assert_eq!(app.import_queue_total, 0, "the import is already complete");
     }
 
     #[test]
