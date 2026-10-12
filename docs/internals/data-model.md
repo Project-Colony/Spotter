@@ -1,113 +1,143 @@
-# Data Model
+# Data model
 
-## Core Structures
+## Where the data lives
+
+Spotter uses the three standard Colony folders, through
+`colony_ui::paths::{config_dir, data_dir, cache_dir}("Spotter")`, and keeps
+them apart by sub-directory, because config and data are the same folder on
+Windows and macOS:
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| config | `~/.config/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| data | `~/.local/share/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| cache | `~/.cache/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\cache\` | `~/Library/Caches/Colony/Spotter/` |
+
+```
+<config>/
+├── preferences/
+│   └── preferences.json          every preference, see guide/configuration.md
+└── credentials/                  only when no OS keyring is usable (0600 on Unix)
+
+<data>/
+├── library/
+│   └── spotter.db                the SQLite database below
+├── exports/
+│   ├── spotter_export.json       written by Export JSON, read by Import JSON
+│   ├── spotter_export.csv        written by Export CSV
+│   └── spotter_auto_backup.json  rewritten after every import
+└── logs/
+    ├── import.log                one line per import step
+    └── import.log.1              the previous log, rotated at 5 MB
+
+<cache>/
+├── covers/                       one .jpg per game, named after its title
+└── achievement_icons/            <appid>_<name>.jpg and its grey variant
+```
+
+The Profile page shows these paths with `colony_ui::paths::locate`, which does
+not create anything. Deleting the cache folder costs nothing but the downloads.
+
+Spotter 0.3 and older kept everything under `~/.config/Colony/Spotter/`
+(`Application Support` on macOS, `AppData\Local` on Windows), with the database
+in `data/` and the settings in the database. A newer version copies the
+database, exports and logs from there on its first start, imports the old
+settings row into `preferences.json`, writes a marker so the check runs once,
+and never deletes the old folder. If the copy fails, it keeps using the old
+location rather than start on an empty library.
+
+## Records
 
 ### Game
 
-The primary entity. 21 fields tracking a game across platforms.
+The library entry, one row of the `games` table.
 
 ```rust
 Game {
-    id: Option<i64>,              // SQLite AUTOINCREMENT primary key
-    title: String,                // Display name
+    id: Option<i64>,              // SQLite primary key, None before the first save
+    title: String,
     platform: Platform,           // Steam | Gog | Epic | PlayStation | Xbox | Nintendo
-    playtime_minutes: u32,        // Total play time
-    achievements_unlocked: u32,   // Player's unlocked count
-    achievements_total: u32,      // Available achievements
+    playtime_minutes: u32,
+    achievements_unlocked: u32,
+    achievements_total: u32,
     status: GameStatus,           // Playing | Completed | Unplayed | Dropped | Wishlist
-    rating: Option<u8>,           // 0-10 user rating (None = unrated)
-    genre: String,                // e.g. "Action RPG"
-    last_played: String,          // "YYYY-MM-DD" or "—" if never
-    cover_url: String,            // Remote URL for cover art
-    steam_appid: Option<u32>,     // Steam App ID (e.g. 1245620 for Elden Ring)
-    gog_id: Option<String>,       // GOG product ID
-    epic_id: Option<String>,      // Epic catalog item ID
-    xbox_id: Option<String>,      // Xbox title ID
-    psn_id: Option<String>,       // PSN game ID
-    notes: String,                // User notes (max 2000 chars)
-    description: String,          // Store description
-    release_date: String,         // "YYYY-MM-DD"
-    review_percent: Option<u32>,  // Store review score (0-100)
-    tags: String,                 // Comma-separated tags
+    rating: Option<u8>,           // 0-10, None = unrated
+    genre: String,
+    last_played: String,          // "YYYY-MM-DD", empty if never
+    cover_url: String,            // remote address; the file is in <cache>/covers
+    steam_appid: Option<u32>,
+    gog_id: Option<String>,
+    epic_id: Option<String>,
+    xbox_id: Option<String>,
+    psn_id: Option<String>,
+    notes: String,                // the user's own notes
+    description: String,          // store description
+    release_date: String,
+    review_percent: Option<u32>,  // store review score, 0-100
+    tags: String,                 // comma-separated
 }
 ```
 
-**Builder pattern:**
-
-```rust
-GameBuilder::new("Elden Ring", Platform::Steam)
-    .playtime(12000)
-    .achievements(32, 42)
-    .status(GameStatus::Playing)
-    .rating(9)
-    .genre("Action RPG")
-    .steam_appid(1245620)
-    .build()
-```
-
-### Platform
-
-```
-Steam       → color: rgb(0.4, 0.6, 0.9)   (blue)
-Gog         → color: rgb(0.7, 0.5, 0.9)   (purple)
-Epic        → color: rgb(0.9, 0.9, 0.3)   (yellow)
-PlayStation → color: rgb(0.2, 0.4, 0.9)   (navy)
-Xbox        → color: rgb(0.2, 0.8, 0.2)   (green)
-Nintendo    → color: rgb(0.9, 0.2, 0.2)   (red)
-```
-
-### GameStatus
-
-```
-Playing   → color: rgb(0.2, 0.8, 0.4)   (green)
-Completed → color: rgb(0.3, 0.6, 1.0)   (blue)
-Unplayed  → color: rgb(0.9, 0.7, 0.2)   (gold)
-Dropped   → color: rgb(0.8, 0.3, 0.3)   (red)
-Wishlist  → color: rgb(0.7, 0.5, 0.9)   (purple)
-```
+The store ids are what an import matches on before it falls back to the title;
+see [architecture.md](architecture.md#import-merge).
 
 ### Achievement
 
-Per-game achievement data. Only available for Steam games currently.
-
 ```rust
 Achievement {
-    api_name: String,        // Internal ID (e.g. "ACHIEVEMENT_001")
-    display_name: String,    // "First Steps"
-    description: String,     // "Complete the tutorial"
-    icon_url: String,        // Colored icon URL (unlocked)
-    icon_gray_url: String,   // Grayscale icon URL (locked)
-    unlocked: bool,          // Player's unlock status
-    unlock_time: u64,        // Unix timestamp (0 if locked)
+    api_name: String,        // the store's internal id
+    display_name: String,
+    description: String,
+    icon_url: String,        // unlocked icon
+    icon_gray_url: String,   // locked icon
+    unlocked: bool,
+    unlock_time: u64,        // Unix timestamp, 0 while locked
 }
 ```
+
+Steam and Xbox imports store one row per achievement. PlayStation only fills
+the game's unlocked and total counts.
 
 ### UserProfile
 
-Stores user identity and platform credentials.
-
 ```rust
 UserProfile {
-    username: String,           // Display name (default: "Player")
-    avatar_path: String,        // Reserved for future use
-    steam_api_key: String,      // From steamcommunity.com/dev/apikey
-    steam_id: String,           // 64-bit Steam ID (from login)
-    gog_token: String,          // OAuth access token
-    gog_refresh_token: String,  // For automatic token renewal
-    xbox_api_key: String,       // From xbl.io
-    xbox_gamertag: String,      // Xbox username
-    psn_npsso: String,          // PSN browser cookie token
-    member_since: String,       // "YYYY-MM-DD" (auto-set on creation)
+    username: String,             // display name, "Player" by default
+    avatar_path: String,          // unused
+    steam_api_key: String,        // secret
+    steam_id: String,             // 64-bit Steam ID, from the Steam login
+    gog_token: String,            // secret
+    gog_refresh_token: String,    // secret
+    xbox_api_key: String,         // secret, the OpenXBL key
+    xbox_gamertag: String,
+    xbox_xuid: String,            // Xbox user id, read during an import
+    psn_npsso: String,            // secret
+    epic_token: String,           // secret
+    epic_refresh_token: String,   // secret
+    epic_account_id: String,
+    epic_display_name: String,
+    member_since: String,         // "YYYY-MM-DD", set on creation
 }
 ```
 
-### Settings
+`keyring.rs` loads and saves the seven secret fields. They live in the OS
+keyring under the service name `spotter`, one entry per field. When no keyring
+is usable they go to `<config>/credentials/` instead, and the Profile page says
+so. The matching database columns stay empty.
 
-25 user-configurable preferences. See [CONFIGURATION.md](CONFIGURATION.md) for details.
+### Preferences
 
-## Database Schema
+`preferences.json` holds Spotter's own preferences and colony-ui's
+`StandardPreferences`, flattened into one object. Every field is read on its
+own, so one bad value only resets that field. The keys are listed in
+[guide/configuration.md](../guide/configuration.md).
 
-SQLite with WAL mode and foreign keys enabled.
+## Database schema
+
+`spotter.db` is SQLite in WAL mode with foreign keys on and `secure_delete`
+on, so an overwritten value does not linger in the file's free pages.
+`db::open` creates the tables if they are missing and then runs the column
+migrations in `db.rs`, once per session.
 
 ### games
 
@@ -133,26 +163,29 @@ CREATE TABLE games (
     description           TEXT DEFAULT '',
     release_date          TEXT DEFAULT '',
     review_percent        INTEGER,
-    tags                  TEXT DEFAULT ''
+    tags                  TEXT DEFAULT '',
+    created_at            TEXT DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-**Indexes:** `platform`, `status`, `steam_appid`, `title`, `rating`, `last_played`
+Indexes: `platform`, `status`, `title`, `rating`, `last_played`, and each store
+id (`steam_appid`, `gog_id`, `epic_id`, `xbox_id`, `psn_id`).
 
 ### achievements
 
 ```sql
 CREATE TABLE achievements (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    steam_appid    INTEGER NOT NULL,
-    api_name       TEXT NOT NULL,
-    display_name   TEXT DEFAULT '',
-    description    TEXT DEFAULT '',
-    icon_url       TEXT DEFAULT '',
-    icon_gray_url  TEXT DEFAULT '',
-    unlocked       INTEGER DEFAULT 0,
-    unlock_time    INTEGER DEFAULT 0,
-    UNIQUE(steam_appid, api_name)
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    steam_appid   INTEGER NOT NULL,
+    platform_id   TEXT NOT NULL DEFAULT '',   -- '' for Steam, 'xbox:<title id>' for Xbox
+    api_name      TEXT NOT NULL,
+    display_name  TEXT NOT NULL DEFAULT '',
+    description   TEXT NOT NULL DEFAULT '',
+    icon_url      TEXT NOT NULL DEFAULT '',
+    icon_gray_url TEXT NOT NULL DEFAULT '',
+    unlocked      INTEGER NOT NULL DEFAULT 0,
+    unlock_time   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(steam_appid, platform_id, api_name)
 );
 ```
 
@@ -161,46 +194,24 @@ CREATE TABLE achievements (
 ```sql
 CREATE TABLE playtime_history (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id        INTEGER NOT NULL REFERENCES games(id),
-    date           TEXT NOT NULL,         -- "YYYY-MM-DD"
-    minutes_played INTEGER DEFAULT 0
+    game_id        INTEGER NOT NULL,
+    date           TEXT NOT NULL,              -- "YYYY-MM-DD"
+    minutes_played INTEGER NOT NULL,
+    FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
 );
 ```
+
+The Statistics screen charts the last 30 days of it.
 
 ### user_profile
 
-Single-row table (id = 1) storing `UserProfile` fields as individual columns.
-
-The credential columns (`steam_api_key`, `gog_token`, `gog_refresh_token`, `xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) stay empty: `keyring.rs` keeps those secrets in the OS keyring. They hold a value, unencrypted, only when no keyring is usable, and `keyring.rs` moves it to the keyring on a later start.
+A single row (`id = 1`) with one column per `UserProfile` field. The seven
+secret columns (`steam_api_key`, `gog_token`, `gog_refresh_token`,
+`xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) are always
+empty: the secrets are in the keyring, or in `<config>/credentials/` without
+one.
 
 ### settings
 
-Single-row table (id = 1) storing JSON-serialized `Settings` struct.
-
-```sql
-CREATE TABLE settings (
-    id   INTEGER PRIMARY KEY,
-    data TEXT NOT NULL              -- JSON blob
-);
-```
-
-## Storage Locations
-
-| OS | Path |
-|----|------|
-| Linux | `~/.config/Colony/Spotter/` |
-| macOS | `~/Library/Application Support/Colony/Spotter/` |
-| Windows | `%LOCALAPPDATA%\Colony\Spotter\` |
-
-**Subdirectories:**
-
-```
-Colony/Spotter/
-├── data/
-│   └── spotter.db              # SQLite database
-├── cache/
-│   ├── covers/                 # Game cover art (JPEG)
-│   └── achievement_icons/      # Achievement icons (colored + grayscale)
-└── exports/
-    └── spotter_export.json     # JSON backup file
-```
+A single row (`id = 1`) with a JSON `data` column. Only Spotter 0.3 and older
+wrote it; a newer version reads it once to seed `preferences.json` on upgrade.

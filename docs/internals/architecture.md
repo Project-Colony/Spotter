@@ -1,144 +1,159 @@
 # Architecture
 
-Spotter is a cross-platform game library tracker built with **Rust** and the **Iced** GUI framework. It uses **SQLite** for local persistence and supports importing games from 5 platforms.
+Spotter is one Rust binary: an [iced](https://iced.rs) 0.14 application on the
+Elm pattern (state, messages, `update`, `view`), a SQLite database through
+`rusqlite`, and one blocking `ureq` client per store. The look, the
+Preferences page building blocks, the fonts, the en/fr shared labels and the
+folder paths come from
+[colony-ui](https://github.com/Project-Colony/Project-Colony-Resources/tree/main/crates/colony-ui),
+the Project Colony design-system crate.
 
-## Module Map
-
-```
-main.rs                 Entry point → spotter::run()
-lib.rs                  Module tree, re-exports app::run
-app.rs (1300+ lines)    State machine: Spotter struct, Message enum, update(), view()
-├── views/
-│   ├── library.rs      Game list with search, filters, sort
-│   ├── detail.rs       Single game: metadata, achievements, rating, notes
-│   ├── stats.rs        Statistics dashboard with charts
-│   ├── settings.rs     Three-tab preferences (General / Appearances / Accessibility)
-│   ├── profile.rs      User profile, credentials, data export/import
-│   ├── import.rs       Platform import cards with step-by-step flows
-│   ├── sidebar.rs      Navigation + quick stats
-│   └── add_game.rs     Manual game entry form
-├── models.rs           Data structures: Game, Settings, Platform, Achievement, etc.
-├── db.rs               SQLite: schema, CRUD, playtime history, export/import
-├── theme.rs            Color constants, ViewTheme, style helpers
-├── error.rs            SpotterError enum (migration in progress)
-├── api_client.rs       HTTP agents, retry logic, URL encoding, browser open
-├── images.rs           Cover art + achievement icon download/caching
-├── steam.rs            Steam import (Web API + HTML scraping)
-├── steam_auth.rs       Steam OpenID login (localhost:29876)
-├── gog.rs              GOG import (OAuth API)
-├── gog_auth.rs         GOG OAuth 2.0 token exchange
-├── epic.rs             Epic Games local manifest scanner
-├── xbox.rs             Xbox Live import (OpenXBL API)
-└── playstation.rs      PSN import (OAuth + trophy API)
-```
-
-## Data Flow
+## Module map
 
 ```
-User Interaction
-       │
-       ▼
-   Message enum (100+ variants)
-       │
-       ▼
-   app::update()  ──→  Task<Message> (async operations)
-       │                      │
-       ▼                      ▼
-   State mutation        Background thread
-   (Spotter fields)      (API calls, DB writes)
-       │                      │
-       ▼                      ▼
-   app::view()           Result callback
-   (renders UI)          (re-enters Message loop)
+src/
+├── main.rs            entry point: --version, then spotter::run()
+├── lib.rs             the whole module tree; the pub modules are what tests/ uses
+├── app.rs             Spotter (the state), Message, update(), view(), run()
+├── handlers/          update() split by area: data and persistence, imports,
+│                      store logins, preferences
+├── messages/          the message enums those areas add to Message
+├── views/             one file per screen (library, game detail, statistics,
+│                      import, profile, add game, Preferences) plus the sidebar
+├── models.rs          Game, Platform, GameStatus, Achievement, UserProfile and
+│                      Spotter's own preferences
+├── db.rs              SQLite schema, migrations, queries, export and import
+├── keyring.rs         the seven secrets, in the OS keyring or the fallback file
+├── api_client.rs      HTTP agents, retry and rate limiting, the import log,
+│                      URL encoding, opening the browser
+├── images.rs          cover and achievement icon download and cache
+├── theme.rs           Spotter's widget styles over the colony-ui palette
+├── error.rs           SpotterError
+├── steam/             mod.rs: owned games, store and achievement scraping
+│                      auth.rs: OpenID login on 127.0.0.1
+├── gog/               mod.rs: library and store metadata; auth.rs: OAuth code exchange
+├── epic/              online.rs: account import; local.rs: installed-games scan;
+│                      auth.rs, api.rs, graphql.rs and helpers
+├── xbox.rs            OpenXBL import
+└── playstation.rs     NPSSO exchange, trophy titles, game list
 ```
 
-All state mutations pass through the `Message` enum in `app.rs`. Async operations (API calls, DB writes) are spawned as `Task<Message>` and return results via callback messages.
+`main.rs` declares no module of its own: it calls `spotter::run`, and
+everything else hangs off `lib.rs`. Which store endpoints each importer calls is
+in [api-integrations.md](api-integrations.md).
 
-## Screen Navigation
+## Data flow
 
 ```
-┌──────────────┐    ┌────────────────────────────────────┐
-│   Sidebar    │    │         Main Content Area           │
-│              │    │                                     │
-│  Library ────┼───►│  Library (search, filter, game list)│
-│  + Add Game ─┼───►│  AddGame (form)                    │
-│  Statistics ─┼───►│  Statistics (charts, distributions) │
-│  Import ─────┼───►│  Import (platform cards)            │
-│  Profile ────┼───►│  Profile (credentials, export)      │
-│              │    │                                     │
-│  ── Quick ── │    │  GameDetail (from library click)    │
-│  Playing: X  │    │  Settings (from sidebar logo)       │
-│  Completed: Y│    │                                     │
-│  Unplayed: Z │    └────────────────────────────────────┘
-│              │
-│  [Username]  │
-└──────────────┘
+user input / keyboard
+        │
+        ▼
+     Message ──────► Spotter::update() ──► state change ──► Spotter::view()
+        ▲                   │
+        │                   ▼
+        │        Task<Message> (spawn_task / spawn_write)
+        │                   │
+        │                   ▼
+        └──── result ◄── worker thread: store requests, SQLite, files
 ```
 
-## Key Architectural Patterns
-
-### Message-Driven Updates
-
-Every user interaction produces a `Message` variant. The `update()` function pattern-matches on it, mutates state, and optionally returns an async `Task<Message>`.
+Every change goes through a `Message`. Views only read `&Spotter` and return
+widgets; they never mutate it. Blocking work runs in `app::spawn_task`, which
+moves the closure to a new thread and maps its `Result<T, String>` back into a
+message:
 
 ```rust
-// Example flow: rating a game
-Message::SetGameRating(game_id, Some(8))
-  → find game by ID, set rating
-  → spawn Task: save to DB
-  → on completion: Message::DataSaved(Result)
-  → show toast notification
+fn spawn_task<T, F, M>(f: F, msg: impl FnOnce(Result<T, String>) -> M + Send + 'static) -> Task<M>
 ```
 
-### Async via Thread Spawning
+Writes of saved data go through `Spotter::spawn_write` instead. If the startup
+load failed, the app is holding defaults rather than the user's data, so
+`spawn_write` refuses every write (preferences, profile, games, exports,
+auto-backup) and reports it, and the files on disk stay as they were.
 
-Iced uses a `Task` abstraction. Spotter wraps blocking operations in `std::thread::spawn`:
+## Screens
 
-```rust
-fn spawn_task<T, F, M>(f: F, msg: fn(Result<T, String>) -> M) -> Task<M>
+```
+┌───────────────┐   ┌──────────────────────────────────────────┐
+│ [Spotter ⚙]───┼──►│ Preferences (replaces the content area;   │
+│               │   │   same button or Close goes back)         │
+│ Library ──────┼──►│ Library ──► Game detail                   │
+│ + Add Game ───┼──►│ Add Game                                  │
+│ Statistics ───┼──►│ Statistics                                │
+│ Import ───────┼──►│ Import (one card per store)               │
+│ Profile ──────┼──►│ Profile (name, keyring state, data paths, │
+│               │   │   export and import)                      │
+│ quick stats   │   └──────────────────────────────────────────┘
+└───────────────┘
 ```
 
-This runs `f` on a new thread and maps the result through `msg`.
+The sidebar stays on every screen. Keyboard: `Esc` cancels a pending delete,
+`Ctrl+F` focuses the search, and `Ctrl+A` selects every game the library
+currently shows (`Cmd` instead of `Ctrl` on macOS).
 
-### Import Merge Logic
+## Import merge
 
-When importing games from a platform, deduplication uses a multi-key index:
+An import returns a `Vec<Game>`, and `merge_imported_games`
+(`handlers/data.rs`) folds it into the library. Each incoming game is matched,
+in this order, on:
 
-1. **Platform ID match** (e.g., `steam_appid`) — most reliable
-2. **Title + Platform match** — for games without IDs
-3. **Title-only match** — last resort
+1. its store id (`steam_appid`, `gog_id`, `epic_id`, `xbox_id`, `psn_id`);
+2. its title and platform;
+3. its title alone.
 
-Existing user data (ratings, notes, status) is always preserved. Only empty metadata fields are backfilled from imports.
+A matched game gets the incoming genre, description, release date, tags, cover
+address and review score when the import has them, the achievement counts when
+the import has any, and the larger of the two playtimes; store ids it lacked
+are filled in. Status, rating, notes and last-played date are never touched.
+Unmatched games are added, and arrive in the library one by one (the import
+cascade) unless reduced motion is on.
 
-### Theme System
+After an import Spotter saves the library, writes `spotter_auto_backup.json`,
+and, unless turned off, downloads the missing covers.
 
-Two layers:
-- **Static constants** (`theme.rs`): Used in style closures where `ViewTheme` isn't available
-- **ViewTheme struct**: Computed per-render from `Settings`, provides theme-mode-aware colors
+## Look and preferences
 
-```rust
-let vt = ViewTheme::from_settings(&app.settings);
-// vt.bg_card, vt.text_muted, vt.border, etc.
-```
+Colours come from the active colony-ui theme (`colony_ui::Palette` roles,
+`app_tint` for platform and status colours, `contrast_on` for text on a fill),
+never from literals. Each view calls `Typography::current()` once and sizes
+every text with `typo.sz(base)`, so the font size and the accessibility text
+size both apply. Animations check `colony_ui::effects_enabled()`, which is false
+under reduced motion.
+
+The preferences file is Spotter's own struct with colony-ui's
+`StandardPreferences` flattened into it. At startup Spotter loads it, calls
+`StandardPreferences::apply()` and sets the locale; a change on the Preferences
+page goes through `StandardPreferences::update()` and is saved at once. Text is
+looked up by key in Spotter's en/fr tables merged with colony-ui's shared ones,
+and a test keeps the two locales' key sets identical.
+
+## Credentials
+
+`keyring.rs` sits between the profile and the database. On load it reads the
+seven secret fields from the keyring; on save it writes them there and keeps
+their database columns empty. The first keyring failure in a session switches
+it to the fallback file in `<config>/credentials/` for the rest of the session,
+and the Profile page shows a warning. It only deletes keyring entries it has
+read or written this session, because a locked store can answer "no entry"
+for a secret it does hold.
 
 ## Dependencies
 
-| Crate | Version | Role |
-|-------|---------|------|
-| iced | 0.13 | GUI framework (with `image` feature) |
-| rusqlite | 0.32 | SQLite (bundled, zero system deps) |
-| ureq | 2 | Blocking HTTP client |
-| serde / serde_json | 1 | JSON serialization |
-| chrono | 0.4 | Date/time formatting |
-| csv | 1 | CSV export |
-| thiserror | 1 | Error derive macros |
-| dirs | 5 | Platform-specific directories |
+| Crate | Role |
+|---|---|
+| `iced` (with `image`) | GUI |
+| `colony-ui` | themes, typography, fonts, Preferences widgets, shared labels, folder paths |
+| `rusqlite` (bundled) | SQLite, compiled in; no system library needed |
+| `ureq` (with `json`) | blocking HTTP |
+| `scraper` | Steam store and achievement pages |
+| `keyring`, `keyring-core` | OS keyring, and its mock store in tests |
+| `serde`, `serde_json`, `csv` | JSON and CSV |
+| `chrono` | dates |
+| `thiserror` | `SpotterError` |
+| `winresource` (build) | the Windows icon and version resource |
 
-## Build Profiles
+Every version is pinned exactly in `Cargo.toml`, and `Cargo.lock` is committed;
+CI builds with `--locked`.
 
-```toml
-[profile.release]
-lto = "thin"       # Link-time optimization
-strip = true       # Strip debug symbols
-opt-level = 3      # Maximum optimization
-```
+The release profile uses thin LTO, one codegen unit, `opt-level = 3`, and strips
+symbols.

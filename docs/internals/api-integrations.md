@@ -1,164 +1,143 @@
-# API Integrations
+# API integrations
 
-Spotter imports games from 5 platforms. Each has a distinct authentication model and data source.
+Spotter imports from five stores. Each importer is a blocking function that
+runs on a worker thread and returns `Vec<Game>`; the merge into the library is
+described in [architecture.md](architecture.md#import-merge). Only Steam's Web
+API and OpenXBL are documented public APIs: the GOG, Epic and PlayStation
+endpoints below are the ones their own clients use, and can change without
+notice. The recorded responses in `tests/integration_tests.rs` pin down what
+each parser expects.
+
+Every importer appends its steps and counts to `import.log` through
+`api_client::ImportLogger` (see
+[data-model.md](data-model.md#where-the-data-lives)).
+
+## HTTP client
+
+All requests go through `ureq` agents built in `api_client.rs`:
+
+| | |
+|---|---|
+| connect timeout | 10 s |
+| read timeout | 15 s for API calls, 30 s for downloads |
+| `http_get_retry` | exponential backoff, 500 ms x 2^attempt; a 4xx fails at once, except 429 |
+| `RateLimiter` | doubles its delay on each 429, up to 60 s, and eases back 25% per success |
+| images | at most 10 MB, and the bytes must be a JPEG, PNG, WebP or GIF image |
 
 ## Steam
 
-**Module:** `steam.rs`, `steam_auth.rs`
+`steam/mod.rs` (import) and `steam/auth.rs` (login).
 
-### Authentication
+**Login.** Steam OpenID 2.0. `steam_login` binds the first free port among
+29876 to 29880 on `127.0.0.1`, opens `steamcommunity.com/openid/login` in the
+browser with `http://localhost:<port>/callback` as the return address, and
+waits up to two minutes. The Steam ID is taken from `openid.claimed_id` only
+after `steamcommunity.com` confirms the answer (`check_authentication`), so a
+forged callback is rejected. The Web API key is typed by the user.
 
-1. **OpenID Login** — User clicks "Login with Steam", a local HTTP server starts on `localhost:29876`. Steam redirects back with the user's 64-bit Steam ID.
-2. **API Key** — User provides their Steam Web API key from [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey).
+| Endpoint | Used for |
+|---|---|
+| `api.steampowered.com/IPlayerService/GetOwnedGames/v0001/` | owned games, names and playtime (key + Steam ID) |
+| `store.steampowered.com/app/<appid>/` | genre, release date, description, tags, review score (HTML) |
+| `steamcommunity.com/stats/<appid>/achievements` | the game's achievement list with icons (HTML) |
+| `steamcommunity.com/profiles/<steamid>/stats/appid/<appid>/achievements/` | the player's unlocks and dates (HTML, public profile only) |
+| `shared.fastly.steamstatic.com/store_item_assets/steam/apps/<appid>/header.jpg` | cover image |
 
-### Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `api.steampowered.com/IPlayerService/GetOwnedGames/v1/` | Owned games list (JSON) |
-| `store.steampowered.com/app/{appid}/` | Game metadata (HTML scraping) |
-| `steamcommunity.com/.../GetPlayerAchievements/` | Achievement data (HTML scraping) |
-
-### Import Flow
-
-1. Fetch owned games via Web API (returns `appid`, `name`, `playtime_forever`)
-2. Scrape store pages for metadata (genre, release date, cover, review %, description)
-3. Scrape achievement pages per game
-4. Concurrent scraping: 5 threads, 100ms delay between requests
-
-### Scraped Data
-
-From store HTML pages:
-- **Genre:** `<a href="/genre/...">text</a>`
-- **Release date:** `<div class="release_date">...<div class="date">DATE</div>`
-- **Cover:** `<meta property="og:image" content="...">`
-- **Review %:** Score extracted from review section
-- **Tags:** From tag elements on the store page
+Five worker threads share the game list, pause 500 ms between games, and retry
+a store page twice. Games that already have store details or complete
+achievements in the library are skipped, so a second import is much faster.
+Achievement icons are downloaded during the import.
 
 ## GOG
 
-**Module:** `gog.rs`, `gog_auth.rs`
+`gog/mod.rs` (import) and `gog/auth.rs` (login).
 
-### Authentication
+**Login.** OAuth 2.0 with the public GOG Galaxy client id. The browser opens
+`auth.gog.com/auth`; after sign-in GOG redirects to
+`embed.gog.com/on_login_success`, and the user pastes that address (or its
+`code`). `auth.gog.com/token` exchanges the code for an access and a refresh
+token, with the parameters in a form body so they stay out of URLs. The refresh
+token renews the access token at startup and when an import fails.
 
-OAuth 2.0 using well-known Galaxy client credentials (same for all GOG Galaxy clients):
-- Client ID: `46899977096215655`
-- Client secret: `9d85c43b1482497dbbce61f6e4aa173a433796eeae2571571f...`
-- Redirect: `https://embed.gog.com/on_login_success`
+| Endpoint | Used for |
+|---|---|
+| `embed.gog.com/account/getFilteredProducts?mediaType=1&page=<n>` | owned games, all pages (token) |
+| `api.gog.com/products/<id>?expand=description` | description, release date, genres and cover (public) |
 
-Token refresh is automatic on 401 responses.
-
-### Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `embed.gog.com/user/data/games` | Owned games list (auth required) |
-| `api.gog.com/products/{id}` | Game metadata (public) |
-
-### Import Flow
-
-1. User logs in via OAuth (browser flow)
-2. Fetch owned game IDs from user endpoint
-3. Fetch metadata per game from public API
-4. Data: title, cover (`logo2x`), description (`lead`), release date
-
-**Note:** GOG does not expose achievement data via API.
+GOG's API has no achievement data for Spotter.
 
 ## Epic Games
 
-**Module:** `epic.rs`
+`epic/`. Two independent imports, picked by whether the user is logged in.
 
-### Authentication
+**Local scan** (`local.rs`), no login. Reads the Epic Games Launcher's `.item`
+manifests and Legendary's `installed.json` from:
 
-None required. Reads local manifest files directly.
-
-### Data Source
-
-Scans `.item` JSON manifests from the Epic Games Launcher:
-
-| OS | Path |
-|----|------|
-| Windows | `C:\ProgramData\Epic\EpicGamesLauncher\Data\Manifests\` |
+| System | Folder |
+|---|---|
+| Windows | `%PROGRAMDATA%\Epic\EpicGamesLauncher\Data\Manifests\` |
 | macOS | `/Users/Shared/Epic Games/Launcher/Data/Manifests/` |
-| Linux (Heroic) | `~/.config/heroic/store_cache/` |
-| Linux (Legendary) | `~/.config/legendary/installed.json` |
-| Wine/Proton | `~/.wine/drive_c/ProgramData/Epic/...` |
+| Linux | `~/.config/legendary/` (`installed.json`), `~/.config/heroic/store_cache/`, and the launcher folder inside `~/.wine/drive_c/ProgramData/` |
 
-### Extracted Fields
+Only entries in the `games` category are kept. Store details then come from
+`store-content-ipv4.ak.epicgames.com`.
 
-- `DisplayName` → title
-- `CatalogItemId` → epic_id
-- `AppName` → internal reference
-- `AppCategories` → used to filter non-game content
+**Account import** (`auth.rs`, `online.rs`, `api.rs`, `graphql.rs`). OAuth with
+the public Epic Games Launcher client id, the same one Legendary and Heroic
+use. The browser opens `www.epicgames.com/id/login`, which ends on a JSON page
+holding `authorizationCode`; the user pastes it, and
+`account-public-service-prod.ol.epicgames.com` exchanges it for an access
+token, a refresh token, the account id and the display name.
 
-## Xbox Live
+| Endpoint | Used for |
+|---|---|
+| `library-service.live.use1a.on.epicgames.com/library/api/public/items` | owned items, paginated |
+| `entitlement-public-service-prod08.ol.epicgames.com/entitlement/api/account/<id>/entitlements` | items missing from the library service |
+| `launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/Windows` | the launcher's own asset list |
+| `catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/<ns>/bulk/items` | titles, categories, images |
+| `store-content-ipv4.ak.epicgames.com/api/en-US/content/products/<slug>` | description, cover, tags, release date |
+| `store.epicgames.com/graphql` | slugs, titles of unresolved items, ratings, achievement totals, fallback metadata |
 
-**Module:** `xbox.rs`
+The three item lists are merged by namespace and catalog item id, DLC and
+non-game items are filtered out, and items whose title cannot be resolved are
+dropped. Epic does not grant the launcher client the scope for player
+achievements, so only the total count is known. A 401 triggers one token
+refresh and a retry.
 
-### Authentication
+## Xbox
 
-Uses [OpenXBL](https://xbl.io) as a proxy API:
-- Header: `X-Authorization: {api_key}`
+`xbox.rs`, through [OpenXBL](https://xbl.io), a third-party proxy for Xbox Live.
+Every request carries the user's key in the `X-Authorization` header.
 
-### Endpoint
+| Endpoint | Used for |
+|---|---|
+| `xbl.io/api/v2/account` | the user's XUID |
+| `xbl.io/api/v2/player/titleHistory` | played titles with cover, playtime, last played and achievement counts, up to 50 pages |
+| `xbl.io/api/v2/achievements/player/<xuid>/<titleid>` | Xbox One, Series and PC achievements |
+| `xbl.io/api/v2/achievements/x360/<xuid>/title/<titleid>` | Xbox 360 achievements |
+| `xbl.io/api/v2/marketplace/details` | descriptions and release dates for a batch of titles |
 
-| Endpoint | Purpose |
-|----------|---------|
-| `xbl.io/api/v2/player/titleHistory` | Title history with stats |
+`is_game` keeps titles played on `XboxOne`, `XboxSeries`, `Xbox360`, `PC` or
+`Win32`. Achievements are saved per title under `platform_id = xbox:<titleid>`.
 
-### Import Flow
+## PlayStation
 
-1. Fetch title history
-2. Filter by device type: `XboxOne`, `XboxSeries`, `Xbox360`, `PC`, `Win32`
-3. Extract: title, `displayImage` (cover), `minutesPlayed`, `lastTimePlayed`, achievements (current/total)
+`playstation.rs`.
 
-### Filtering
+**Login.** The user pastes an NPSSO token from
+`ca.account.sony.com/api/v1/ssocookie`. Spotter exchanges it with the public
+PlayStation app client id: `ca.account.sony.com/api/authz/v3/oauth/authorize`
+returns an authorization code, and `.../oauth/token` an access token. The
+access token is not stored; each import exchanges the NPSSO again.
 
-The `is_game()` heuristic filters out apps by checking for Xbox-specific device categories.
+| Endpoint | Used for |
+|---|---|
+| `m.np.playstation.com/api/trophy/v1/users/me/trophyTitles` | every game with trophies and its earned and total trophy counts, paginated |
+| `m.np.playstation.com/api/gamelist/v2/users/me/titles?categories=ps4_game,ps5_native_game` | playtime, last played and covers for PS4 and PS5 games |
 
-## PlayStation Network
-
-**Module:** `playstation.rs`
-
-### Authentication
-
-Multi-step OAuth flow:
-1. User provides **NPSSO token** (extracted from browser cookies at `store.playstation.com`)
-2. Exchange NPSSO → authorization code via `ca.account.sony.com/api/v1/oauth/authorize`
-3. Exchange code → access token via `ca.account.sony.com/api/v1/oauth/token`
-
-Uses hardcoded PSN Android app credentials for the OAuth client.
-
-### Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `ca.account.sony.com/api/v1/oauth/authorize` | Authorization code |
-| `ca.account.sony.com/api/v1/oauth/token` | Access token exchange |
-| `m.np.playstation.com/api/graphql/v1/op?operationName=RetrieveTitleList` | Game library (GraphQL) |
-| `m.np.playstation.com/api/trophy/v2/trophyTitles` | Trophy counts |
-
-### Import Flow
-
-1. Exchange NPSSO for OAuth token
-2. Fetch game library via GraphQL
-3. Fetch trophy counts (bronze/silver/gold/platinum → converted to unlocked/total)
-4. Extract: title, playtime, last played, trophy data
-
-**Note:** No individual trophy details are available, only counts.
+The trophy list is the game list; the played-games list only enriches it.
+Individual trophies are not read.
 
 ## Nintendo
 
-No API integration. Games are added manually through the "Add Game" form with `Platform::Nintendo` selected.
-
-## HTTP Client
-
-All API calls go through `api_client.rs`:
-
-```
-Connect timeout: 10s
-Read timeout:    15s (API) / 30s (downloads)
-Retry strategy:  Exponential backoff (500ms × 2^attempt)
-                 4xx errors: fail immediately (no retry)
-                 5xx/network: retry up to N times
-```
+No API. Games are added by hand with **Add Game**.
