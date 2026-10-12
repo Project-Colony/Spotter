@@ -1,27 +1,27 @@
 # Platform setup
 
 Everything below happens on the **Import** screen: each store has a card with
-its steps, a status pill (Setup required, Ready, Importing) and an import
-button. What you enter there is kept in the operating system's keyring, see
+its numbered steps, a status badge (Setup needed, Ready and so on) and an
+import button. What you enter there is kept in the operating system's keyring, see
 [Privacy](../../README.md#privacy).
 
 | Store | What Spotter needs | Where to get it |
 |---|---|---|
-| Steam | your Steam ID and a Steam Web API key | the **Login** button, then [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) |
-| GOG | a GOG login | the **Login** button, then paste the address GOG redirects you to |
-| Epic Games | nothing, or an Epic login for the whole library | the **Login** button, then paste the answer Epic shows |
+| Steam | your Steam ID and a Steam Web API key | the **Log in** button, then [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) |
+| GOG | a GOG login | the **Log in** button, then paste the address GOG redirects you to |
+| Epic Games | nothing, or an Epic login for the whole library | the **Log in** button, then paste the answer Epic shows |
 | Xbox | an OpenXBL API key | [xbl.io](https://xbl.io) (free account) |
 | PlayStation | an NPSSO token | [ca.account.sony.com/api/v1/ssocookie](https://ca.account.sony.com/api/v1/ssocookie) while signed in to PlayStation |
-| Nintendo | nothing | no import: add games with **Add Game** |
+| Nintendo | nothing | no import: add games on the **Add game** page |
 
 ## Steam
 
-1. Click **Login**. Steam's sign-in page opens in your browser. Sign in and
+1. Click **Log in**. Steam's sign-in page opens in your browser. Sign in and
    approve; Steam sends you back to a page served by Spotter on `127.0.0.1`,
    and the card shows your Steam ID. Spotter waits two minutes for the answer.
 2. Create a Web API key at
    [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) (any
-   domain name works) and paste it into **Steam Web API key**.
+   domain name works) and paste it into the **API key** field.
 3. Click **Import Steam**.
 
 Achievements are read from your Steam community profile, so set **Game
@@ -31,10 +31,10 @@ store page and your achievements, five games at a time.
 
 ## GOG
 
-1. Click **Login**. GOG's sign-in page opens in your browser.
+1. Click **Log in**. GOG's sign-in page opens in your browser.
 2. After signing in, the browser lands on a mostly blank
    `embed.gog.com/on_login_success?...` page. Copy that whole address from the
-   address bar, paste it into the card, and click **Complete**. Pasting only
+   address bar, paste it into the card, and click **Finish**. Pasting only
    the `code=` value works too.
 3. Click **Import GOG**.
 
@@ -51,12 +51,13 @@ The login is optional, and it decides what the import button does:
   prefix `~/.wine` on Linux) and Legendary's `installed.json`. The folders are
   listed in
   [api-integrations.md](../internals/api-integrations.md#epic-games).
-- **With a login**, it imports every game the account owns. Click **Login**,
+- **With a login**, it imports every game the account owns. Click **Log in**,
   sign in on the page that opens, and copy what Epic shows afterwards: a short
   JSON text that contains `authorizationCode`. Paste it into the card and click
-  **Complete**. The code alone, or an address with `?code=`, works too.
+  **Finish**. The code alone, or an address with `?code=`, works too.
 
-Then click the import button. Spotter renews the Epic login at startup, like
+Then click **Import installed games** or, once logged in, **Import the whole
+library**. Spotter renews the Epic login at startup, like
 GOG's.
 
 ## Xbox
@@ -80,7 +81,7 @@ hourly request limit, which a large library can reach.
 2. In the same browser, open
    [ca.account.sony.com/api/v1/ssocookie](https://ca.account.sony.com/api/v1/ssocookie).
    It shows `{"npsso":"..."}`. Copy the 64-character value between the quotes.
-3. Paste it into **NPSSO Token** and click **Import PlayStation**.
+3. Paste it into the **NPSSO token** field and click **Import PlayStation**.
 
 The NPSSO token is a login cookie for your Sony account: treat it like a
 password. It expires after about two months, and signing out of
@@ -91,15 +92,15 @@ individual trophies.
 
 ## Nintendo
 
-Nintendo offers no library API. Add your games with **Add Game** in the
-sidebar.
+Nintendo offers no library API. Add your games on the **Add game** page, from
+the sidebar.
 
 ## After an import
 
 - Importing again updates playtime, achievements and store details, adds new
   games, and keeps your status, rating and notes.
-- Covers download after each import unless **Auto-download covers on
-  import** is off in Preferences.
+- Covers download after each import unless **Download covers after an
+  import** is off in Preferences, under Imports.
 - Every import writes `spotter_auto_backup.json` and a line per step to
   `import.log`; their folders are listed in
   [data-model.md](../internals/data-model.md#where-the-data-lives).

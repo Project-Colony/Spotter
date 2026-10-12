@@ -41,17 +41,18 @@ fresh temporary directory through `db::open_at`, and the keyring tests use
 |---|---|
 | `tests/unit_tests.rs` | models and enums, preferences parsing and versioning, the database (CRUD, batch save, achievements, playtime history, profile, export and import), CSV and JSON export, errors |
 | `tests/integration_tests.rs` | each importer's parser against recorded Steam, PlayStation, Xbox, GOG and Epic responses, image validation, the rate limiter, the import log, URL encoding |
-| `#[cfg(test)]` modules in `src/` | Steam HTML scraping, multi-byte title and description cuts, keyring moves, the write refusal after a failed load, the folders and their migration, the en/fr key parity, the window icon |
+| `#[cfg(test)]` modules in `src/` | Steam HTML scraping, multi-byte title and description cuts, keyring moves, the write refusal after a failed load, the folders and their migration, `preferences.json` and the import of 0.3 settings, the en/fr tables, the Preferences toggle and `Esc`, imports without effects, the window icon |
 
 Not covered by automated tests: live store requests (the importers are only
 tested against recorded responses), the login flows end to end, the import
 merge in `handlers/data.rs`, and rendering.
 A change to a view, the Preferences page or the French layout needs a look on a
-real desktop at both ends of the text scale (0.72x and 1.68x).
+real desktop at both ends of the text scale (0.7225x and 1.68x).
 
 ## Before a pull request
 
-CI runs on Linux, Windows and macOS, and again on Rust 1.90:
+CI runs these on Linux, Windows and macOS with the latest stable Rust, then
+builds and tests again on exactly Rust 1.90:
 
 ```bash
 cargo fmt --check
@@ -86,13 +87,26 @@ reads run alongside a write. A new column goes into both `init_tables` and the
 **Secrets.** A new credential is a `UserProfile` field listed in
 `keyring::secrets`, so it goes to the keyring and never into the database.
 
-**Look.** Colours come from colony-ui's palette roles and text sizes from
-`Typography::current()` and `typo.sz(base)`; no colour literals and no raw
-`.size(N)`. Gate animations on `colony_ui::effects_enabled()`.
+**Look.** Take every colour from the active palette
+(`colony_ui::theme::Palette::*()`), in view code and in style closures alike,
+and reuse the style helpers in `theme.rs`; a colour literal would ignore the
+user's theme and high contrast. Write text with `theme::ui_text(content, base)`
+rather than `text(..).size(N)`, and give a text input
+`.size(sz(N)).font(ui_font())`, so both text sizes and the dyslexia font reach
+it. Gate animations on `colony_ui::effects_enabled()`.
 
-**Text.** Every user-visible string is a key, present in both the English and
-the French table (a test fails otherwise). French uses the vous form and a
-space before `:`, `;`, `!` and `?`. Store and product names stay untranslated.
+**Text.** Views hold no text: they call `i18n::t(key)`, `i18n::tf(key, vars)`
+to fill `{name}` placeholders, or `i18n::tn(key, count, vars)` for a string that
+depends on a count (`key_one` and `key_other`; French also uses the singular
+for zero). Numbers with decimals and percentages go through `i18n::decimal` and
+`i18n::percent`, which follow French typography (`12,5 %`). English is
+canonical: name a new key after its English meaning and write the English first,
+then the French. `cargo test` fails when `en.json` and `fr.json` hold different
+keys, when a string is empty or the placeholders differ, when a key is missing
+or unused, or when one repeats a shared colony-ui label. French uses the vous
+form and a non-breaking space before `:`, `;`, `!` and `?`. Store, program and
+theme names stay untranslated. Game statuses are stored by their English name
+(`GameStatus`'s `Display`) and shown through `GameStatus::label`.
 
 **Files.** Spotter's own paths come from `paths::layout()` in `src/paths.rs`,
 built on `colony_ui::paths` (`config_dir`, `data_dir`, `cache_dir`); never

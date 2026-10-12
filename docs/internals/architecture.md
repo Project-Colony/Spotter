@@ -78,7 +78,7 @@ auto-backup) and reports it, and the files on disk stay as they were.
 │ [Spotter ⚙]───┼──►│ Preferences (replaces the content area;   │
 │               │   │   same button or Close goes back)         │
 │ Library ──────┼──►│ Library ──► Game detail                   │
-│ + Add Game ───┼──►│ Add Game                                  │
+│ Add game ─────┼──►│ Add game                                  │
 │ Statistics ───┼──►│ Statistics                                │
 │ Import ───────┼──►│ Import (one card per store)               │
 │ Profile ──────┼──►│ Profile (name, keyring state, data paths, │
@@ -88,7 +88,8 @@ auto-backup) and reports it, and the files on disk stay as they were.
 ```
 
 The sidebar stays on every screen. Keyboard: `Esc` cancels a pending delete,
-`Ctrl+F` focuses the search, and `Ctrl+A` selects every game the library
+or else closes Preferences, or else goes back to the library; `Ctrl+F` focuses
+the search, and `Ctrl+A` selects every game the library
 currently shows (`Cmd` instead of `Ctrl` on macOS).
 
 ## Import merge
@@ -113,19 +114,28 @@ and, unless turned off, downloads the missing covers.
 
 ## Look and preferences
 
-Colours come from the active colony-ui theme (`colony_ui::Palette` roles,
-`app_tint` for platform and status colours, `contrast_on` for text on a fill),
-never from literals. Each view calls `Typography::current()` once and sizes
-every text with `typo.sz(base)`, so the font size and the accessibility text
-size both apply. Animations check `colony_ui::effects_enabled()`, which is false
-under reduced motion.
+Colours come from the active colony-ui theme, never from literals: the
+`colony_ui::theme::Palette` roles (`Palette::TEXT_MUTED()`, `Palette::BG_CARD()`
+...), read wherever a widget is drawn, including inside style closures, and
+`contrast_on` for text on a filled button. Platforms and game statuses keep
+one colour on every theme: `Platform::accent_key` and `GameStatus::accent_key`
+name a shared accent swatch, which `theme::shared_accent` turns into a colour.
+The style helpers (cards, chips, buttons, pills) are in `theme.rs`.
+
+Text goes through `theme::ui_text(content, base)`, which sizes it with
+`colony_ui::sz(base)`, so the Appearance and Accessibility text sizes both
+apply, sets it in the interface font, so the dyslexia font reaches it, and
+keeps the Nerd Font glyphs inside it in the glyph font. Animations, the import
+cascade included, check `colony_ui::effects_enabled()`, which is false when
+**Animations** is off or reduced motion is on.
 
 The preferences file is Spotter's own struct with colony-ui's
 `StandardPreferences` flattened into it. At startup Spotter loads it, calls
 `StandardPreferences::apply()` and sets the locale; a change on the Preferences
 page goes through `StandardPreferences::update()` and is saved at once. Text is
-looked up by key in Spotter's en/fr tables merged with colony-ui's shared ones,
-and a test keeps the two locales' key sets identical.
+looked up by key (`i18n::t`, `tf`, `tn`) in Spotter's own en/fr tables
+(`src/i18n/en.json`, `src/i18n/fr.json`), then in colony-ui's shared labels;
+tests keep the two locales' keys and placeholders identical.
 
 ## Credentials
 
@@ -148,6 +158,7 @@ for a secret it does hold.
 | `iced` (with `image`) | GUI |
 | `colony-ui` | themes, typography, fonts, Preferences widgets, shared labels, folder paths |
 | `rusqlite` (bundled) | SQLite, compiled in; no system library needed |
+| `dirs` | the home folder, for the Epic Games local scan |
 | `ureq` (with `json`) | blocking HTTP |
 | `scraper` | Steam store and achievement pages |
 | `keyring`, `keyring-core` | OS keyring, and its mock store in tests |
@@ -156,8 +167,8 @@ for a secret it does hold.
 | `thiserror` | `SpotterError` |
 | `winresource` (build) | the Windows icon and version resource |
 
-Every version is pinned exactly in `Cargo.toml`, and `Cargo.lock` is committed;
-CI builds with `--locked`.
+Every dependency names its full version in `Cargo.toml`, and `Cargo.lock` is
+committed; CI builds with `--locked`.
 
 The release profile uses thin LTO, one codegen unit, `opt-level = 3`, and strips
 symbols.

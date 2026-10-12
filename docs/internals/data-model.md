@@ -134,8 +134,9 @@ Profile page says so. The matching database columns stay empty.
 ### Preferences
 
 `preferences.json` holds Spotter's own preferences and colony-ui's
-`StandardPreferences`, flattened into one object. Every field is read on its
-own, so one bad value only resets that field. The keys are listed in
+`StandardPreferences`, flattened into one object, with a `version` field (2
+since the move out of the database). Every field is read on its own, so one
+bad value only resets that field. The keys are listed in
 [guide/configuration.md](../guide/configuration.md).
 
 ## Database schema
