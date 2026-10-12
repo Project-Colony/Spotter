@@ -64,18 +64,21 @@ Spotter 0.3 and earlier kept the settings in the library database, with three da
 
 ## Style Helpers
 
+Spotter defines no colour of its own. Widgets read the active Colony palette (`colony_ui::theme::Palette`, for example `Palette::TEXT_MUTED()`), so a theme, accent or high-contrast change reaches every screen. Platforms and game statuses use the shared accent swatches (`theme::shared_accent`), the same on every theme; text on a filled button takes `colony_ui::contrast_on` of the fill.
+
 Reusable style functions in `theme.rs`:
 
 | Function | Description |
 |----------|-------------|
 | `card_style(bg, border, radius)` | Rounded card container |
-| `chip_style(active, text, accent, radius)` | Filter chip toggle |
+| `chip_style(active, color, radius)` | Chip toggle: tinted with `color` when active, outlined otherwise |
 | `transparent_btn_style()` | Invisible button wrapper |
-| `primary_btn_style(bg)` | Solid filled action button |
-| `outline_btn_style(color, bg)` | Outlined button |
-| `disabled_btn_style()` | Grayed-out disabled button |
-| `loading_btn_style()` | Gold-tinted importing state |
-| `accent_card_style(bg, accent)` | Card with colored left border |
+| `primary_btn_style(bg)` | Solid filled action button, label in `contrast_on(bg)` |
+| `outline_btn_style(color)` | Outlined button on any surface |
+| `disabled_btn_style()` | Dimmed disabled button |
+| `loading_btn_style()` | Warning-tinted state for imports and logins in progress |
+| `danger_btn_style()` | Delete action |
+| `accent_card_style(accent)` | Card with a border tinted by `accent` |
 | `dot_style(color, size)` | Small circular indicator |
 | `pill_style(bg, border)` | Rounded status badge |
 

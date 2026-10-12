@@ -754,28 +754,38 @@ fn game_status_icons_non_empty() {
 }
 
 #[test]
-fn platform_colors_non_black() {
+fn platform_colors_are_distinct_shared_accents() {
     use spotter::models::Platform;
     for p in Platform::all() {
-        let c = p.color();
         assert!(
-            c.r > 0.0 || c.g > 0.0 || c.b > 0.0,
-            "Platform {:?} color should not be black",
+            colony_ui::accent_key_to_color(p.accent_key()).is_some(),
+            "Platform {:?} names an accent colony-ui does not ship",
             p
         );
+    }
+    let colors: Vec<_> = Platform::all().iter().map(|p| p.color()).collect();
+    for (i, a) in colors.iter().enumerate() {
+        for b in &colors[i + 1..] {
+            assert_ne!(a, b, "two platforms share a colour");
+        }
     }
 }
 
 #[test]
-fn game_status_colors_non_black() {
+fn game_status_colors_are_distinct_shared_accents() {
     use spotter::models::GameStatus;
     for s in GameStatus::all() {
-        let c = s.color();
         assert!(
-            c.r > 0.0 || c.g > 0.0 || c.b > 0.0,
-            "GameStatus {:?} color should not be black",
+            colony_ui::accent_key_to_color(s.accent_key()).is_some(),
+            "GameStatus {:?} names an accent colony-ui does not ship",
             s
         );
+    }
+    let colors: Vec<_> = GameStatus::all().iter().map(|s| s.color()).collect();
+    for (i, a) in colors.iter().enumerate() {
+        for b in &colors[i + 1..] {
+            assert_ne!(a, b, "two statuses share a colour");
+        }
     }
 }
 

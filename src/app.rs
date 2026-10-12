@@ -834,19 +834,18 @@ impl Spotter {
 
     pub fn view(&self) -> Element<'_, Message> {
         use iced::widget::{button, column, container, row, stack, text};
-        use iced::{Alignment, Background, Border, Color, Length, Padding};
+        use iced::{Alignment, Length, Padding};
 
         let sidebar = views::sidebar::view(self);
 
         // Loading indicator before data is ready
         let content: Element<'_, Message> = if !self.data_loaded {
-            let vt = crate::theme::ViewTheme::from_settings(&self.settings);
             container(
                 column![
                     text("Loading your library...")
                         .size(18)
-                        .color(vt.text_light),
-                    text("Please wait").size(12).color(vt.text_muted),
+                        .color(Palette::TEXT_PRIMARY()),
+                    text("Please wait").size(12).color(Palette::TEXT_MUTED()),
                 ]
                 .spacing(8)
                 .align_x(Alignment::Center),
@@ -891,201 +890,38 @@ impl Spotter {
                 .find(|g| g.id == Some(delete_id))
                 .map(|g| g.title.clone())
                 .unwrap_or_else(|| "this game".to_string());
-
-            let backdrop = button(
-                container(text("").size(1))
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            )
-            .on_press(Message::CancelDelete)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|_: &Theme, _| button::Style {
-                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.5))),
-                ..button::Style::default()
-            });
-            layers.push(backdrop.into());
-
-            let modal_bg = Palette::BG_CARD();
-            let modal_card = container(
-                column![
-                    text(format!("{} Delete Game", crate::theme::icons::DELETE))
-                        .size(20)
-                        .font(colony_ui::ui_font_bold())
-                        .color(crate::theme::DANGER),
-                    text(format!(
-                        "Are you sure you want to delete \"{}\"?",
-                        game_title
-                    ))
-                    .size(14)
-                    .color(crate::theme::TEXT_LIGHT),
-                    text("You'll have 8 seconds to undo after deletion.")
-                        .size(12)
-                        .color(crate::theme::TEXT_MUTED),
-                    row![
-                        button(text("Delete").size(14).color(Color::WHITE))
-                            .on_press(Message::DeleteGame(delete_id))
-                            .padding([10, 24])
-                            .style(|_: &Theme, status| {
-                                let hover = matches!(
-                                    status,
-                                    button::Status::Hovered | button::Status::Pressed
-                                );
-                                let bg = if hover {
-                                    Color::from_rgb(0.7, 0.12, 0.12)
-                                } else {
-                                    Color::from_rgb(0.6, 0.1, 0.1)
-                                };
-                                button::Style {
-                                    background: Some(Background::Color(bg)),
-                                    text_color: Color::WHITE,
-                                    border: Border {
-                                        radius: 8.0.into(),
-                                        color: Color::from_rgb(0.8, 0.2, 0.2),
-                                        width: 1.0,
-                                    },
-                                    ..button::Style::default()
-                                }
-                            }),
-                        button(text("Cancel").size(14).color(crate::theme::TEXT_SECONDARY))
-                            .on_press(Message::CancelDelete)
-                            .padding([10, 24])
-                            .style(crate::theme::outline_btn_style(
-                                crate::theme::TEXT_SECONDARY,
-                                modal_bg,
-                            )),
-                    ]
-                    .spacing(12),
-                ]
-                .spacing(12),
-            )
-            .padding(24)
-            .max_width(450)
-            .style(move |_: &Theme| container::Style {
-                background: Some(Background::Color(modal_bg)),
-                border: Border {
-                    radius: 12.0.into(),
-                    color: Color::from_rgb(0.6, 0.15, 0.15),
-                    width: 2.0,
-                },
-                ..container::Style::default()
-            });
-
-            let modal_positioned = container(modal_card)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill);
-            layers.push(modal_positioned.into());
+            layers.push(views::helpers::delete_modal(
+                "Delete Game",
+                format!("Are you sure you want to delete \"{}\"?", game_title),
+                "Delete".to_string(),
+                Message::DeleteGame(delete_id),
+            ));
         } else if self.confirm_bulk_delete {
             let count = self.bulk_selected.len();
-
-            let backdrop = button(
-                container(text("").size(1))
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            )
-            .on_press(Message::CancelDelete)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|_: &Theme, _| button::Style {
-                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.5))),
-                ..button::Style::default()
-            });
-            layers.push(backdrop.into());
-
-            let modal_bg = Palette::BG_CARD();
-            let modal_card = container(
-                column![
-                    text(format!("{} Bulk Delete", crate::theme::icons::DELETE))
-                        .size(20)
-                        .font(colony_ui::ui_font_bold())
-                        .color(crate::theme::DANGER),
-                    text(format!("Are you sure you want to delete {} games?", count))
-                        .size(14)
-                        .color(crate::theme::TEXT_LIGHT),
-                    text("You'll have 8 seconds to undo after deletion.")
-                        .size(12)
-                        .color(crate::theme::TEXT_MUTED),
-                    row![
-                        button(
-                            text(format!("Delete {}", count))
-                                .size(14)
-                                .color(Color::WHITE)
-                        )
-                        .on_press(Message::ConfirmBulkDelete)
-                        .padding([10, 24])
-                        .style(|_: &Theme, status| {
-                            let hover =
-                                matches!(status, button::Status::Hovered | button::Status::Pressed);
-                            let bg = if hover {
-                                Color::from_rgb(0.7, 0.12, 0.12)
-                            } else {
-                                Color::from_rgb(0.6, 0.1, 0.1)
-                            };
-                            button::Style {
-                                background: Some(Background::Color(bg)),
-                                text_color: Color::WHITE,
-                                border: Border {
-                                    radius: 8.0.into(),
-                                    color: Color::from_rgb(0.8, 0.2, 0.2),
-                                    width: 1.0,
-                                },
-                                ..button::Style::default()
-                            }
-                        }),
-                        button(text("Cancel").size(14).color(crate::theme::TEXT_SECONDARY))
-                            .on_press(Message::CancelDelete)
-                            .padding([10, 24])
-                            .style(crate::theme::outline_btn_style(
-                                crate::theme::TEXT_SECONDARY,
-                                modal_bg,
-                            )),
-                    ]
-                    .spacing(12),
-                ]
-                .spacing(12),
-            )
-            .padding(24)
-            .max_width(450)
-            .style(move |_: &Theme| container::Style {
-                background: Some(Background::Color(modal_bg)),
-                border: Border {
-                    radius: 12.0.into(),
-                    color: Color::from_rgb(0.6, 0.15, 0.15),
-                    width: 2.0,
-                },
-                ..container::Style::default()
-            });
-
-            let modal_positioned = container(modal_card)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill);
-            layers.push(modal_positioned.into());
+            layers.push(views::helpers::delete_modal(
+                "Bulk Delete",
+                format!("Are you sure you want to delete {} games?", count),
+                format!("Delete {}", count),
+                Message::ConfirmBulkDelete,
+            ));
         }
 
         // Toast notification
         if let Some(msg) = toast_msg {
             let is_error = self.error_message.is_some() && self.success_message.is_none();
             let accent = if is_error {
-                crate::theme::DANGER
+                Palette::ERROR()
             } else {
-                crate::theme::SUCCESS
+                Palette::SUCCESS()
             };
 
             let has_undo = !self.recently_deleted.is_empty();
-            let toast_bg = Palette::BG_CARD();
 
             let toast_content: Element<'_, Message> = if has_undo && !is_error {
-                let undo_btn = button(text("Undo").size(13).color(crate::theme::ACCENT_BLUE))
+                let undo_btn = button(text("Undo").size(13))
                     .on_press(Message::UndoDelete)
                     .padding([4, 12])
-                    .style(crate::theme::outline_btn_style(
-                        crate::theme::ACCENT_BLUE,
-                        toast_bg,
-                    ));
+                    .style(crate::theme::outline_btn_style(Palette::ACCENT()));
                 row![text(msg.clone()).size(13).color(accent), undo_btn,]
                     .spacing(12)
                     .align_y(iced::Alignment::Center)
@@ -1096,20 +932,11 @@ impl Spotter {
 
             let toast = container(toast_content)
                 .padding([10, 16])
-                .style(move |_: &Theme| container::Style {
-                    background: Some(Background::Color(toast_bg)),
-                    border: Border {
-                        radius: 10.0.into(),
-                        color: Color {
-                            r: accent.r * 0.4,
-                            g: accent.g * 0.4,
-                            b: accent.b * 0.4,
-                            a: 1.0,
-                        },
-                        width: 1.0,
-                    },
-                    ..container::Style::default()
-                });
+                .style(crate::theme::card_style(
+                    Palette::BG_CARD(),
+                    accent.scale_alpha(0.4),
+                    10.0,
+                ));
 
             let sidebar_w = self.settings.sidebar_width.clamp(160, 400) as f32 + 20.0;
             let toast_positioned = container(toast)

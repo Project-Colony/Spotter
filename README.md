@@ -82,7 +82,7 @@ src/
   preferences.rs   preferences.json: load, save, import from Spotter 0.3
   keyring.rs       Platform tokens in the OS keyring
   models.rs        Data structures (Game, Platform, Settings, etc.)
-  theme.rs         Color constants and ViewTheme
+  theme.rs         Icons and style helpers on the Colony palette
   steam.rs         Steam import + HTML scraping
   steam_auth.rs    Steam browser login flow
   gog.rs           GOG Galaxy import

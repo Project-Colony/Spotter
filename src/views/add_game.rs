@@ -1,21 +1,20 @@
+use colony_ui::theme::Palette;
 use iced::widget::{button, column, container, row, rule, text, text_input};
-use iced::{Background, Border, Color, Element, Length, Theme};
+use iced::{Color, Element, Length};
 
 use crate::app::{Message, Screen, Spotter};
 use crate::models::{GameStatus, Platform};
-use crate::theme::{self, ViewTheme};
+use crate::theme;
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
-    let vt = ViewTheme::from_settings(&app.settings);
-
     let header = column![
         text(format!("{} Add Game", theme::icons::ADD))
             .size(24)
             .font(colony_ui::ui_font_bold())
-            .color(Color::WHITE),
+            .color(Palette::TEXT_PRIMARY()),
         text("Manually add a game to your library")
             .size(12)
-            .color(vt.text_muted),
+            .color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -67,65 +66,21 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Buttons
     let can_save = !app.new_game_title.trim().is_empty();
     let save_btn = if can_save {
-        button(text("Add to Library").size(14).color(theme::BG_DARKER))
+        button(text("Add to Library").size(14))
             .on_press(Message::SaveNewGame)
             .padding([10, 24])
-            .style(|_: &Theme, status| {
-                let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-                let bg = if hover {
-                    crate::theme::lighten(theme::SUCCESS, 0.04)
-                } else {
-                    theme::SUCCESS
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    text_color: theme::BG_DARKER,
-                    border: Border {
-                        radius: 8.0.into(),
-                        ..Border::default()
-                    },
-                    ..button::Style::default()
-                }
-            })
+            .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else {
-        button(text("Add to Library").size(14).color(theme::TEXT_HEADING))
+        button(text("Add to Library").size(14))
             .padding([10, 24])
-            .style(|_: &Theme, _| button::Style {
-                background: Some(Background::Color(theme::BG_BUTTON)),
-                text_color: theme::TEXT_HEADING,
-                border: Border {
-                    radius: 8.0.into(),
-                    color: theme::BORDER_CARD,
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            })
+            .style(theme::disabled_btn_style())
     };
 
-    let cancel_btn = button(text("Cancel").size(13).color(theme::TEXT_SECONDARY))
+    let cancel_btn = button(text("Cancel").size(13))
         .on_press(Message::NavigateTo(Screen::Library))
         .padding([8, 16])
-        .style(|_: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let bg = if hover {
-                crate::theme::lighten(theme::BG_BUTTON, 0.04)
-            } else {
-                theme::BG_BUTTON
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: theme::TEXT_SECONDARY,
-                border: Border {
-                    radius: 6.0.into(),
-                    color: theme::BORDER_CARD,
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        });
+        .style(theme::outline_btn_style(Palette::TEXT_SECONDARY()));
 
-    let bg_card = vt.bg_card;
-    let border_color = vt.border;
     let form_card = container(
         column![
             title_section,
@@ -140,15 +95,11 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     )
     .padding(20)
     .width(Length::Fill)
-    .style(move |_: &Theme| container::Style {
-        background: Some(Background::Color(bg_card)),
-        border: Border {
-            radius: 8.0.into(),
-            color: border_color,
-            width: 1.0,
-        },
-        ..container::Style::default()
-    });
+    .style(theme::card_style(
+        Palette::BG_CARD(),
+        Palette::BORDER_SUBTLE(),
+        8.0,
+    ));
 
     let content = column![header, rule::horizontal(1), form_card,]
         .spacing(16)
@@ -163,7 +114,7 @@ fn labeled_section<'a>(
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     column![
-        text(label).size(13).color(theme::TEXT_LIGHT),
+        text(label).size(13).color(Palette::TEXT_PRIMARY()),
         content.into(),
     ]
     .spacing(6)
@@ -171,89 +122,28 @@ fn labeled_section<'a>(
 }
 
 fn platform_btn<'a>(label: &'a str, target: Platform, current: Platform) -> Element<'a, Message> {
-    let is_active = current == target;
-    let color = if is_active {
-        target.color()
-    } else {
-        theme::TEXT_MUTED
-    };
-
-    button(text(label).size(12).color(color))
-        .on_press(Message::AddGamePlatformChanged(target))
-        .padding([6, 12])
-        .style(move |_: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let bg = if is_active {
-                if hover {
-                    crate::theme::lighten(Color::from_rgb(0.15, 0.15, 0.22), 0.04)
-                } else {
-                    Color::from_rgb(0.15, 0.15, 0.22)
-                }
-            } else if hover {
-                crate::theme::lighten(theme::BG_BUTTON, 0.04)
-            } else {
-                theme::BG_BUTTON
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 8.0.into(),
-                    color: if is_active {
-                        color
-                    } else if hover {
-                        Color::from_rgb(0.2, 0.2, 0.28)
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
-        .into()
+    choice_chip(
+        label,
+        current == target,
+        target.color(),
+        Message::AddGamePlatformChanged(target),
+    )
 }
 
 fn status_btn<'a>(label: &'a str, target: GameStatus, current: GameStatus) -> Element<'a, Message> {
-    let is_active = current == target;
-    let color = if is_active {
-        target.color()
-    } else {
-        theme::TEXT_MUTED
-    };
+    choice_chip(
+        label,
+        current == target,
+        target.color(),
+        Message::AddGameStatusChanged(target),
+    )
+}
 
-    button(text(label).size(12).color(color))
-        .on_press(Message::AddGameStatusChanged(target))
+/// One choice of a picker row, tinted with the choice's own colour when picked.
+fn choice_chip(label: &str, active: bool, color: Color, msg: Message) -> Element<'_, Message> {
+    button(text(label).size(12))
+        .on_press(msg)
         .padding([6, 12])
-        .style(move |_: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let bg = if is_active {
-                if hover {
-                    crate::theme::lighten(Color::from_rgb(0.15, 0.15, 0.22), 0.04)
-                } else {
-                    Color::from_rgb(0.15, 0.15, 0.22)
-                }
-            } else if hover {
-                crate::theme::lighten(theme::BG_BUTTON, 0.04)
-            } else {
-                theme::BG_BUTTON
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 8.0.into(),
-                    color: if is_active {
-                        color
-                    } else if hover {
-                        Color::from_rgb(0.2, 0.2, 0.28)
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(theme::chip_style(active, color, 8.0))
         .into()
 }

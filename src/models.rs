@@ -77,14 +77,22 @@ impl Platform {
         &Self::ALL
     }
 
+    /// The platform's identity colour: the shared accent closest to its brand.
+    /// Not `colony_ui::app_tint`, whose name hash gives Steam and PlayStation
+    /// the same red, and Epic and Nintendo the same indigo.
     pub fn color(&self) -> iced::Color {
+        crate::theme::shared_accent(self.accent_key())
+    }
+
+    /// The shared Colony accent that identifies this platform.
+    pub fn accent_key(&self) -> &'static str {
         match self {
-            Platform::Steam => iced::Color::from_rgb(0.4, 0.6, 0.9),
-            Platform::Gog => iced::Color::from_rgb(0.7, 0.5, 0.9),
-            Platform::Epic => iced::Color::from_rgb(0.9, 0.9, 0.3),
-            Platform::PlayStation => iced::Color::from_rgb(0.2, 0.4, 0.9),
-            Platform::Xbox => iced::Color::from_rgb(0.2, 0.8, 0.2),
-            Platform::Nintendo => iced::Color::from_rgb(0.9, 0.2, 0.2),
+            Platform::Steam => "blue",
+            Platform::Gog => "violet",
+            Platform::Epic => "yellow",
+            Platform::PlayStation => "indigo",
+            Platform::Xbox => "green",
+            Platform::Nintendo => "red",
         }
     }
 
@@ -152,13 +160,20 @@ impl GameStatus {
         &Self::ALL
     }
 
+    /// The status colour, a shared accent so that it reads the same on every
+    /// theme and no two statuses share it.
     pub fn color(&self) -> iced::Color {
+        crate::theme::shared_accent(self.accent_key())
+    }
+
+    /// The shared Colony accent that identifies this status.
+    pub fn accent_key(&self) -> &'static str {
         match self {
-            GameStatus::Playing => iced::Color::from_rgb(0.2, 0.8, 0.4),
-            GameStatus::Completed => iced::Color::from_rgb(0.3, 0.6, 1.0),
-            GameStatus::Unplayed => iced::Color::from_rgb(0.9, 0.7, 0.2),
-            GameStatus::Dropped => iced::Color::from_rgb(0.8, 0.3, 0.3),
-            GameStatus::Wishlist => iced::Color::from_rgb(0.7, 0.5, 0.9),
+            GameStatus::Playing => "green",
+            GameStatus::Completed => "blue",
+            GameStatus::Unplayed => "amber",
+            GameStatus::Dropped => "red",
+            GameStatus::Wishlist => "violet",
         }
     }
 
@@ -547,6 +562,17 @@ impl Default for Settings {
             sidebar_width: 220,
             show_status_labels: true,
             large_click_targets: false,
+        }
+    }
+}
+
+impl Settings {
+    /// Vertical padding of buttons and chips, larger with "Large click targets".
+    pub fn button_padding(&self) -> u16 {
+        if self.large_click_targets {
+            12
+        } else {
+            8
         }
     }
 }

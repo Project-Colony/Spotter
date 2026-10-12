@@ -41,9 +41,8 @@ Tests are in `tests/unit_tests.rs` and `tests/integration_tests.rs`. Each DB tes
 | Category | Count | What's tested |
 |----------|-------|---------------|
 | Playtime display | 3 | Format hours/minutes strings |
-| Models | 20+ | Enum roundtrips, Display impls, color values, settings serialization |
+| Models | 20+ | Enum roundtrips, Display impls, distinct platform and status colours, settings serialization |
 | Database | 8 | CRUD, batch save, achievements, playtime history, export/import, profile, settings |
-| Theme | 2 | ViewTheme high contrast, ThemeMode background differences |
 | API client | 3 | URL encode/decode, roundtrip |
 | Error | 2 | Display format, String conversion |
 
@@ -67,7 +66,7 @@ src/
 ├── db.rs                # SQLite operations
 ├── paths.rs             # File locations, copy from Spotter 0.3
 ├── preferences.rs       # preferences.json load/save/import
-├── theme.rs             # Colors and style helpers
+├── theme.rs             # Icons and style helpers on the Colony palette
 ├── error.rs             # SpotterError enum
 ├── api_client.rs        # HTTP utilities
 ├── images.rs            # Cover/icon download + caching
@@ -126,7 +125,7 @@ Always open a fresh connection per operation via `db::open()`. The connection us
 
 ### Styling
 
-Use `ViewTheme::from_settings()` at the top of each view function. For style closures (button/container styles), use the static constants from `theme.rs`.
+Take every colour from the active palette (`colony_ui::theme::Palette::*()`), in view code and in style closures alike, and the style helpers in `theme.rs`. Never write a colour literal: it would ignore the user's theme and high-contrast setting.
 
 ## Environment Variables
 

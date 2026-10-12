@@ -1,8 +1,12 @@
+//! Spotter's widget styles. Every colour comes from the active Colony palette
+//! (`colony_ui::theme::Palette`) or the shared accent swatches: Spotter defines
+//! none of its own, so a theme, accent or high-contrast change reaches every
+//! widget.
+
 use colony_ui::theme::Palette;
+use colony_ui::{accent_key_to_color, contrast_on};
 use iced::widget::{button, container};
 use iced::{Background, Border, Color, Theme};
-
-use crate::models::{DateFormat, Settings};
 
 /// Nerd Font icon constants (Font Awesome + Material Design Icons).
 /// Some icons are kept as a reference catalog even if not currently used.
@@ -44,156 +48,22 @@ pub mod icons {
     pub const CIRCLE_O: &str = "\u{f10c}"; // nf-fa-circle-o
 }
 
-// Static color constants are used in style closures (button/container styles)
-// where ViewTheme isn't available. ViewTheme provides theme-mode-aware colors
-// for view layout code. These are complementary, not redundant.
-
-// ── Backgrounds ──
-pub const BG_DARK: Color = Color {
-    r: 0.09,
-    g: 0.09,
-    b: 0.13,
-    a: 1.0,
-};
-pub const BG_DARKER: Color = Color {
-    r: 0.04,
-    g: 0.04,
-    b: 0.08,
-    a: 1.0,
-};
-pub const BG_BUTTON: Color = Color {
-    r: 0.11,
-    g: 0.11,
-    b: 0.16,
-    a: 1.0,
-};
-
-// ── Text (contrast-improved for WCAG readability) ──
-pub const TEXT_MUTED: Color = Color {
-    r: 0.5,
-    g: 0.5,
-    b: 0.6,
-    a: 1.0,
-};
-pub const TEXT_DIM: Color = Color {
-    r: 0.42,
-    g: 0.42,
-    b: 0.52,
-    a: 1.0,
-};
-pub const TEXT_SECONDARY: Color = Color {
-    r: 0.62,
-    g: 0.62,
-    b: 0.72,
-    a: 1.0,
-};
-pub const TEXT_LIGHT: Color = Color {
-    r: 0.75,
-    g: 0.75,
-    b: 0.85,
-    a: 1.0,
-};
-pub const TEXT_HEADING: Color = Color {
-    r: 0.3,
-    g: 0.3,
-    b: 0.4,
-    a: 1.0,
-};
-
-// ── Accents ──
-pub const ACCENT_BLUE: Color = Color {
-    r: 0.45,
-    g: 0.72,
-    b: 1.0,
-    a: 1.0,
-};
-pub const ACCENT_GOLD: Color = Color {
-    r: 1.0,
-    g: 0.82,
-    b: 0.28,
-    a: 1.0,
-};
-pub const SUCCESS: Color = Color {
-    r: 0.25,
-    g: 0.85,
-    b: 0.45,
-    a: 1.0,
-};
-pub const COMPLETED_BLUE: Color = Color {
-    r: 0.35,
-    g: 0.62,
-    b: 1.0,
-    a: 1.0,
-};
-pub const DANGER: Color = Color {
-    r: 1.0,
-    g: 0.38,
-    b: 0.38,
-    a: 1.0,
-};
-
-// ── Borders ──
-pub const BORDER: Color = Color {
-    r: 0.16,
-    g: 0.16,
-    b: 0.22,
-    a: 1.0,
-};
-pub const BORDER_CARD: Color = Color {
-    r: 0.18,
-    g: 0.18,
-    b: 0.24,
-    a: 1.0,
-};
-
-/// Lighten a color by a fixed amount (clamped to 1.0).
-pub fn lighten(color: Color, amount: f32) -> Color {
-    Color {
-        r: (color.r + amount).min(1.0),
-        g: (color.g + amount).min(1.0),
-        b: (color.b + amount).min(1.0),
-        a: color.a,
-    }
+/// A shared Colony accent swatch by key (`colony_ui::ACCENT_OVERRIDES`): the
+/// same colour on every theme, which is what a platform or a game status needs
+/// to stay recognisable. Falls back to the theme's accent for an unknown key.
+pub fn shared_accent(key: &str) -> Color {
+    accent_key_to_color(key).unwrap_or_else(Palette::ACCENT)
 }
 
-/// The active Colony palette's colours, plus the layout choices that come
-/// from the user's Settings.
-/// Create with `ViewTheme::from_settings(&app.settings)` at the top of each view.
-#[derive(Clone, Copy)]
-#[allow(dead_code)]
-pub struct ViewTheme {
-    pub bg_main: Color,
-    pub bg_card: Color,
-    pub bg_row: Color,
-    pub bg_sidebar: Color,
-    pub border: Color,
-    pub text_muted: Color,
-    pub text_dim: Color,
-    pub text_secondary: Color,
-    pub text_light: Color,
-    pub btn_padding: u16,
-    pub show_status_labels: bool,
-    pub date_format: DateFormat,
+fn is_hovered(status: button::Status) -> bool {
+    matches!(status, button::Status::Hovered | button::Status::Pressed)
 }
 
-impl ViewTheme {
-    /// High contrast is part of the active palette (`colony_ui::set_high_contrast`).
-    pub fn from_settings(s: &Settings) -> Self {
-        Self {
-            bg_main: Palette::BG_PRIMARY(),
-            bg_card: Palette::BG_CARD(),
-            bg_row: Palette::BG_PRIMARY(),
-            bg_sidebar: Palette::BG_SIDEBAR(),
-            border: Palette::BORDER_SUBTLE(),
-            text_muted: Palette::TEXT_MUTED(),
-            text_dim: Palette::TEXT_DIM(),
-            text_secondary: Palette::TEXT_SECONDARY(),
-            text_light: Palette::TEXT_PRIMARY(),
-            btn_padding: if s.large_click_targets { 12 } else { 8 },
-            show_status_labels: s.show_status_labels,
-            date_format: s.date_format,
-        }
-    }
+/// The outline of an inactive control. Drawn from the ink rather than from a
+/// surface, so it shows on the page and on a card alike (several themes give
+/// cards and borders the same colour).
+fn control_outline() -> Color {
+    Palette::TEXT_DIMMEST().scale_alpha(0.4)
 }
 
 // ── Reusable style helpers (with hover support) ──
@@ -215,38 +85,38 @@ pub fn card_style(
     }
 }
 
-/// Button style for chip-like toggles (filter chips, option chips).
+/// Chip-like toggle (filters, options, status and rating pickers): tinted with
+/// `color` while active, outlined otherwise.
 pub fn chip_style(
     active: bool,
-    text_color: Color,
-    accent: Color,
+    color: Color,
     radius: f32,
 ) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_: &Theme, status: button::Status| {
-        let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let bg = if active {
-            if hover {
-                lighten(Color::from_rgb(0.14, 0.14, 0.20), 0.04)
-            } else {
-                Color::from_rgb(0.14, 0.14, 0.20)
-            }
-        } else if hover {
-            lighten(BG_BUTTON, 0.04)
+        let hover = is_hovered(status);
+        let (background, border, text_color) = if active {
+            (
+                color.scale_alpha(if hover { 0.24 } else { 0.16 }),
+                color.scale_alpha(0.5),
+                color,
+            )
         } else {
-            BG_BUTTON
-        };
-        button::Style {
-            background: Some(Background::Color(bg)),
-            text_color,
-            border: Border {
-                radius: radius.into(),
-                color: if active {
-                    Color { a: 0.4, ..accent }
-                } else if hover {
-                    Color::from_rgb(0.2, 0.2, 0.28)
+            (
+                if hover {
+                    Palette::BG_CARD_HOVER()
                 } else {
                     Color::TRANSPARENT
                 },
+                control_outline(),
+                Palette::TEXT_MUTED(),
+            )
+        };
+        button::Style {
+            background: Some(Background::Color(background)),
+            text_color,
+            border: Border {
+                radius: radius.into(),
+                color: border,
                 width: 1.0,
             },
             ..button::Style::default()
@@ -256,64 +126,46 @@ pub fn chip_style(
 
 /// Invisible button wrapper with subtle hover feedback.
 pub fn transparent_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
-    |_: &Theme, status: button::Status| {
-        let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: if hover {
-                Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.03)))
-            } else {
-                None
-            },
-            border: Border {
-                radius: 8.0.into(),
-                ..Border::default()
-            },
-            ..button::Style::default()
-        }
+    |_: &Theme, status: button::Status| button::Style {
+        background: is_hovered(status).then(|| Background::Color(Palette::BG_CARD_HOVER())),
+        text_color: Palette::TEXT_PRIMARY(),
+        border: Border {
+            radius: 8.0.into(),
+            ..Border::default()
+        },
+        ..button::Style::default()
     }
 }
 
-/// Solid primary action button with hover lightening.
+/// Solid action button filled with `bg`, its label in whichever of near-black
+/// or near-white reads on it. Hovering lets a little of the surface through.
 pub fn primary_btn_style(bg: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_: &Theme, status: button::Status| {
-        let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        button::Style {
-            background: Some(Background::Color(if hover {
-                lighten(bg, 0.08)
-            } else {
-                bg
-            })),
-            text_color: BG_DARKER,
-            border: Border {
-                radius: 8.0.into(),
-                ..Border::default()
-            },
-            ..button::Style::default()
-        }
+    move |_: &Theme, status: button::Status| button::Style {
+        background: Some(Background::Color(if is_hovered(status) {
+            bg.scale_alpha(0.85)
+        } else {
+            bg
+        })),
+        text_color: contrast_on(bg),
+        border: Border {
+            radius: 8.0.into(),
+            ..Border::default()
+        },
+        ..button::Style::default()
     }
 }
 
-/// Subtle outlined button with hover fill.
-pub fn outline_btn_style(
-    color: Color,
-    bg: Color,
-) -> impl Fn(&Theme, button::Status) -> button::Style {
+/// Button outlined and labelled in `color`, tinted on hover. Transparent, so it
+/// sits on any surface.
+pub fn outline_btn_style(color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
     move |_: &Theme, status: button::Status| {
-        let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let hover = is_hovered(status);
         button::Style {
-            background: Some(Background::Color(if hover {
-                lighten(bg, 0.04)
-            } else {
-                bg
-            })),
+            background: hover.then(|| Background::Color(color.scale_alpha(0.12))),
             text_color: color,
             border: Border {
                 radius: 8.0.into(),
-                color: if hover {
-                    Color { a: 0.5, ..color }
-                } else {
-                    Color { a: 0.35, ..color }
-                },
+                color: color.scale_alpha(if hover { 0.5 } else { 0.35 }),
                 width: 1.0,
             },
             ..button::Style::default()
@@ -324,38 +176,39 @@ pub fn outline_btn_style(
 /// Disabled / muted button (no hover effect).
 pub fn disabled_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
     |_: &Theme, _: button::Status| button::Style {
-        background: Some(Background::Color(BG_BUTTON)),
-        text_color: TEXT_HEADING,
+        background: None,
+        text_color: Palette::TEXT_DIMMER(),
         border: Border {
             radius: 8.0.into(),
-            color: BORDER_CARD,
+            color: control_outline(),
             width: 1.0,
         },
         ..button::Style::default()
     }
 }
 
-/// Pulsing/active state button (gold tint for "importing" states, no hover).
+/// Work in progress, such as an import or a login waiting on the browser
+/// (warning tint, no hover).
 pub fn loading_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
     |_: &Theme, _: button::Status| button::Style {
-        background: Some(Background::Color(Color::from_rgb(0.14, 0.13, 0.08))),
-        text_color: ACCENT_GOLD,
+        background: Some(Background::Color(Palette::WARNING_BG())),
+        text_color: Palette::WARNING(),
         border: Border {
             radius: 8.0.into(),
-            color: Color::from_rgb(0.3, 0.28, 0.1),
+            color: Palette::WARNING().scale_alpha(0.4),
             width: 1.0,
         },
         ..button::Style::default()
     }
 }
 
-/// Card with an accent-colored left border (platform branding).
-pub fn accent_card_style(bg: Color, accent: Color) -> impl Fn(&Theme) -> container::Style {
+/// Card with a border tinted by `accent` (platform branding).
+pub fn accent_card_style(accent: Color) -> impl Fn(&Theme) -> container::Style {
     move |_: &Theme| container::Style {
-        background: Some(Background::Color(bg)),
+        background: Some(Background::Color(Palette::BG_CARD())),
         border: Border {
             radius: 10.0.into(),
-            color: Color { a: 0.25, ..accent },
+            color: accent.scale_alpha(0.25),
             width: 1.0,
         },
         ..container::Style::default()
@@ -374,38 +227,21 @@ pub fn dot_style(color: Color, size: f32) -> impl Fn(&Theme) -> container::Style
     }
 }
 
-/// Badge container style (platform/status pills in detail view).
-pub fn badge_style(border_color: Color) -> impl Fn(&Theme) -> container::Style {
-    move |_: &Theme| container::Style {
-        background: Some(Background::Color(Color::from_rgb(0.12, 0.12, 0.18))),
+/// Danger button for delete actions, with hover effect.
+pub fn danger_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
+    |_: &Theme, status: button::Status| button::Style {
+        background: Some(Background::Color(if is_hovered(status) {
+            Palette::BTN_DANGER_HOVER()
+        } else {
+            Palette::BTN_DANGER_BG()
+        })),
+        text_color: Palette::ERROR(),
         border: Border {
-            radius: 12.0.into(),
-            color: border_color,
+            radius: 6.0.into(),
+            color: Palette::ERROR().scale_alpha(0.5),
             width: 1.0,
         },
-        ..container::Style::default()
-    }
-}
-
-/// Danger button (red) with hover effect for delete actions.
-pub fn danger_btn_style() -> impl Fn(&Theme, button::Status) -> button::Style {
-    |_: &Theme, status: button::Status| {
-        let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let bg = if hover {
-            Color::from_rgb(0.25, 0.08, 0.08)
-        } else {
-            Color::from_rgb(0.2, 0.05, 0.05)
-        };
-        button::Style {
-            background: Some(Background::Color(bg)),
-            text_color: Color::from_rgb(1.0, 0.4, 0.4),
-            border: Border {
-                radius: 6.0.into(),
-                color: Color::from_rgb(0.5, 0.15, 0.15),
-                width: 1.0,
-            },
-            ..button::Style::default()
-        }
+        ..button::Style::default()
     }
 }
 

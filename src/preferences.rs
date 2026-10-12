@@ -261,6 +261,17 @@ mod tests {
     }
 
     #[test]
+    fn an_unknown_theme_still_loads_and_falls_back_to_the_default_palette() {
+        let settings =
+            parse(r#"{"selected_theme":"removed_family","selected_variant":"dusk"}"#).unwrap();
+        let standard = &settings.standard;
+        assert_eq!(
+            colony_ui::resolve(&standard.selected_theme, &standard.selected_variant),
+            colony_ui::FALLBACK_PALETTE
+        );
+    }
+
+    #[test]
     fn a_file_that_is_not_json_is_an_error() {
         let dir = Dir::new("broken");
         std::fs::write(dir.file(), "not json").unwrap();

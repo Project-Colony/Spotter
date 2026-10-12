@@ -2,6 +2,9 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::time::Duration;
 
+use colony_ui::theme::Palette;
+use iced::Color;
+
 const REDIRECT_PORTS: &[u16] = &[29876, 29877, 29878, 29879, 29880];
 const STEAM_OPENID_URL: &str = "https://steamcommunity.com/openid/login";
 
@@ -61,6 +64,21 @@ fn extract_steam_id(query: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// The page the browser shows once Steam hands the login back, in the colours
+/// of the theme Spotter is using.
+fn callback_page(title: &str, message: &str, ink: Color) -> String {
+    fn css(c: Color) -> String {
+        let [r, g, b, _] = c.into_rgba8();
+        format!("#{r:02x}{g:02x}{b:02x}")
+    }
+    format!(
+        "<!DOCTYPE html><html><body style=\"background:{};color:{};font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">\
+         <div style=\"text-align:center\"><h1>{title}</h1><p>{message}</p></div></body></html>",
+        css(Palette::BG_PRIMARY()),
+        css(ink),
+    )
 }
 
 fn url_decode(s: &str) -> String {
@@ -173,8 +191,11 @@ pub fn steam_login() -> Result<String, String> {
                         // Verify OpenID signature before trusting the response
                         if let Err(e) = verify_openid_signature(query) {
                             eprintln!("[steam_auth] {}", e);
-                            let html = "<!DOCTYPE html><html><body style=\"background:#1a1a2e;color:#e44;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">\
-                                <div style=\"text-align:center\"><h1>Login Failed</h1><p>OpenID signature verification failed. Please try again.</p></div></body></html>";
+                            let html = callback_page(
+                                "Login Failed",
+                                "OpenID signature verification failed. Please try again.",
+                                Palette::ERROR(),
+                            );
                             let response = format!(
                                 "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                                 html.len(), html
@@ -185,8 +206,11 @@ pub fn steam_login() -> Result<String, String> {
                         }
 
                         // Send success response
-                        let html = "<!DOCTYPE html><html><body style=\"background:#1a1a2e;color:#eee;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0\">\
-                            <div style=\"text-align:center\"><h1>Steam Login Successful!</h1><p>Your Steam ID has been detected. You can close this tab and return to Spotter.</p></div></body></html>";
+                        let html = callback_page(
+                            "Steam Login Successful!",
+                            "Your Steam ID has been detected. You can close this tab and return to Spotter.",
+                            Palette::TEXT_PRIMARY(),
+                        );
                         let response = format!(
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                             html.len(),
@@ -213,5 +237,18 @@ pub fn steam_login() -> Result<String, String> {
                 return Err(format!("Server error: {}", e));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_callback_page_is_drawn_in_the_given_colours() {
+        let page = super::callback_page("Done", "Close this tab.", colony_ui::hex(0xabcdef));
+        assert!(page.contains("color:#abcdef"), "{page}");
+        assert!(
+            page.contains("<h1>Done</h1><p>Close this tab.</p>"),
+            "{page}"
+        );
     }
 }

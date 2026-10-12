@@ -1,19 +1,18 @@
 use colony_ui::preferences::Change;
+use colony_ui::theme::Palette;
 use colony_ui::widgets::PreferencesView;
 use colony_ui::Typography;
 use iced::widget::{button, column, container, row, rule, text, toggler};
-use iced::{Background, Border, Color, Element, Length, Theme};
+use iced::{Color, Element, Length};
 
 use crate::app::{Message, Spotter};
 use crate::messages::SettingsMessage;
 use crate::models::*;
-use crate::theme::{self, ViewTheme};
+use crate::theme;
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
-    let vt = ViewTheme::from_settings(&app.settings);
-
     let saved_indicator: Element<'_, Message> = if app.settings_just_saved {
-        text("Saved!").size(12).color(theme::SUCCESS).into()
+        text("Saved!").size(12).color(Palette::SUCCESS()).into()
     } else {
         text("").size(1).into()
     };
@@ -22,18 +21,18 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             text(format!("{} Settings", theme::icons::SETTINGS))
                 .size(24)
                 .font(colony_ui::ui_font_bold())
-                .color(Color::WHITE),
+                .color(Palette::TEXT_PRIMARY()),
             saved_indicator,
         ]
         .spacing(10)
         .align_y(iced::Alignment::Center),
         text("Customize your Spotter experience")
             .size(12)
-            .color(vt.text_muted),
+            .color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
-    let accent = colony_ui::theme::Palette::ACCENT();
+    let accent = Palette::ACCENT();
 
     // Section tabs
     let tab_bar = row![
@@ -59,17 +58,19 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     .spacing(4);
 
     let section_content = match app.settings_section {
-        SettingsSection::General => general_section(app, vt),
-        SettingsSection::Appearances => appearances_section(app, vt),
-        SettingsSection::Accessibility => accessibility_section(app, vt),
+        SettingsSection::General => general_section(app),
+        SettingsSection::Appearances => appearances_section(app),
+        SettingsSection::Accessibility => accessibility_section(app),
     };
 
-    let bg_card = vt.bg_card;
-    let border = vt.border;
     let card = container(column![tab_bar, rule::horizontal(1), section_content,].spacing(16))
         .padding(20)
         .width(Length::Fill)
-        .style(theme::card_style(bg_card, border, 8.0));
+        .style(theme::card_style(
+            Palette::BG_CARD(),
+            Palette::BORDER_SUBTLE(),
+            8.0,
+        ));
 
     let content = column![header, rule::horizontal(1), card]
         .spacing(16)
@@ -85,39 +86,16 @@ fn section_tab<'a>(
     current: SettingsSection,
     accent: Color,
 ) -> Element<'a, Message> {
-    let is_active = current == target;
-    let color = if is_active { accent } else { theme::TEXT_MUTED };
-
-    button(text(label).size(14).color(color))
+    button(text(label).size(14))
         .on_press(SettingsMessage::ChangeSection(target).into())
         .padding([8, 16])
-        .style(move |_: &Theme, _| {
-            let bg = if is_active {
-                Color::from_rgb(0.15, 0.15, 0.22)
-            } else {
-                Color::TRANSPARENT
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 8.0.into(),
-                    color: if is_active {
-                        Color { a: 0.4, ..color }
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(theme::chip_style(current == target, accent, 8.0))
         .into()
 }
 
 // ───── General ─────
 
-fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
+fn general_section(app: &Spotter) -> Element<'_, Message> {
     let settings = &app.settings;
 
     // Default status for new games
@@ -133,7 +111,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             )
         }))
         .spacing(4),
-        vt,
     );
 
     // Default platform for new games
@@ -149,7 +126,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             )
         }))
         .spacing(4),
-        vt,
     );
 
     // Confirm before delete
@@ -158,7 +134,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Show a confirmation dialog before removing a game",
         settings.confirm_before_delete,
         SettingsMessage::ConfirmDelete.into(),
-        vt,
     );
 
     // Start screen
@@ -169,30 +144,29 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 "Library",
                 settings.start_screen == StartScreen::Library,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::StartScreen(StartScreen::Library)
             ),
             option_chip(
                 "Statistics",
                 settings.start_screen == StartScreen::Statistics,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::StartScreen(StartScreen::Statistics)
             ),
             option_chip(
                 "Import",
                 settings.start_screen == StartScreen::Import,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::StartScreen(StartScreen::Import)
             ),
             option_chip(
                 "Profile",
                 settings.start_screen == StartScreen::Profile,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::StartScreen(StartScreen::Profile)
             ),
         ]
         .spacing(4),
-        vt,
     );
 
     // Notifications
@@ -201,7 +175,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Display success toasts after actions (errors always show)",
         settings.notifications_enabled,
         SettingsMessage::Notifications.into(),
-        vt,
     );
 
     // Toast duration
@@ -213,12 +186,11 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 &d.to_string(),
                 active,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::ToastDuration(d),
             )
         }))
         .spacing(4),
-        vt,
     );
 
     // Date format
@@ -230,12 +202,11 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 &f.to_string(),
                 active,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::DateFormat(f),
             )
         }))
         .spacing(4),
-        vt,
     );
 
     // Default sort order
@@ -247,13 +218,12 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 &s.to_string(),
                 active,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::DefaultSortOrder(s),
             )
         }))
         .spacing(4)
         .wrap(),
-        vt,
     );
 
     // Remember filters
@@ -262,7 +232,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Persist status and platform filters across sessions",
         settings.remember_filters,
         SettingsMessage::RememberFilters.into(),
-        vt,
     );
 
     // Show game descriptions
@@ -271,7 +240,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Display game descriptions in library card view",
         settings.show_game_descriptions,
         SettingsMessage::ShowDescriptions.into(),
-        vt,
     );
 
     // Achievements display
@@ -283,12 +251,11 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 &d.to_string(),
                 active,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::AchievementsDisplay(d),
             )
         }))
         .spacing(4),
-        vt,
     );
 
     // Download covers auto
@@ -297,11 +264,10 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Automatically download game cover images after importing",
         settings.download_covers_auto,
         SettingsMessage::DownloadCoversAuto.into(),
-        vt,
     );
 
     column![
-        text("General").size(18).color(theme::TEXT_LIGHT),
+        text("General").size(18).color(Palette::TEXT_PRIMARY()),
         row![default_status_row, default_platform_row].spacing(12),
         rule::horizontal(1),
         row![confirm_delete_row, start_screen_row].spacing(12),
@@ -320,7 +286,7 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
 
 // ───── Appearances ─────
 
-fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
+fn appearances_section(app: &Spotter) -> Element<'_, Message> {
     let settings = &app.settings;
 
     // Compact list
@@ -329,7 +295,6 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Reduce spacing between games in the library view",
         settings.compact_list,
         SettingsMessage::CompactList.into(),
-        vt,
     );
 
     // Show covers
@@ -338,7 +303,6 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Display game cover thumbnails alongside titles",
         settings.show_covers_in_list,
         SettingsMessage::ShowCovers.into(),
-        vt,
     );
 
     // Sidebar width
@@ -349,29 +313,28 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
             option_chip(
                 "Narrow (180)",
                 settings.sidebar_width == 180,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::SidebarWidth(180)
             ),
             option_chip(
                 "Normal (220)",
                 settings.sidebar_width == 220,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::SidebarWidth(220)
             ),
             option_chip(
                 "Wide (280)",
                 settings.sidebar_width == 280,
-                theme::ACCENT_BLUE,
+                Palette::ACCENT(),
                 SettingsMessage::SidebarWidth(280)
             ),
         ]
         .spacing(4),
-        vt,
     );
 
     let kit = shared_preferences(app);
     column![
-        text("Appearances").size(18).color(theme::TEXT_LIGHT),
+        text("Appearances").size(18).color(Palette::TEXT_PRIMARY()),
         kit.theme_section(),
         kit.colors_section(),
         kit.typography_section(),
@@ -386,7 +349,7 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
 
 // ───── Accessibility ─────
 
-fn accessibility_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
+fn accessibility_section(app: &Spotter) -> Element<'_, Message> {
     let settings = &app.settings;
 
     let status_labels_row = setting_toggle(
@@ -394,7 +357,6 @@ fn accessibility_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Display text labels next to status indicators instead of color only",
         settings.show_status_labels,
         SettingsMessage::ShowStatusLabels.into(),
-        vt,
     );
 
     let large_targets_row = setting_toggle(
@@ -402,12 +364,13 @@ fn accessibility_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         "Increase button and clickable area sizes for easier interaction",
         settings.large_click_targets,
         SettingsMessage::LargeTargets.into(),
-        vt,
     );
 
     let kit = shared_preferences(app);
     column![
-        text("Accessibility").size(18).color(theme::TEXT_LIGHT),
+        text("Accessibility")
+            .size(18)
+            .color(Palette::TEXT_PRIMARY()),
         kit.vision_section(),
         kit.motion_section(),
         kit.reading_section(),
@@ -437,21 +400,22 @@ fn setting_row<'a>(
     title: &'a str,
     description: &'a str,
     control: impl Into<Element<'a, Message>>,
-    vt: ViewTheme,
 ) -> Element<'a, Message> {
     let label_col = column![
-        text(title).size(14).color(Color::WHITE),
-        text(description).size(11).color(vt.text_muted),
+        text(title).size(14).color(Palette::TEXT_PRIMARY()),
+        text(description).size(11).color(Palette::TEXT_MUTED()),
     ]
     .spacing(2)
     .width(Length::Fill);
 
-    let bg = vt.bg_row;
-    let border = vt.border;
     container(column![label_col, control.into(),].spacing(8))
         .padding([10, 12])
         .width(Length::Fill)
-        .style(theme::card_style(bg, border, 6.0))
+        .style(theme::card_style(
+            Palette::BG_PRIMARY(),
+            Palette::BORDER_SUBTLE(),
+            6.0,
+        ))
         .into()
 }
 
@@ -460,19 +424,16 @@ fn setting_toggle<'a>(
     description: &'a str,
     value: bool,
     msg: Message,
-    vt: ViewTheme,
 ) -> Element<'a, Message> {
     let label_col = column![
-        text(title).size(14).color(Color::WHITE),
-        text(description).size(11).color(vt.text_muted),
+        text(title).size(14).color(Palette::TEXT_PRIMARY()),
+        text(description).size(11).color(Palette::TEXT_MUTED()),
     ]
     .spacing(2)
     .width(Length::Fill);
 
     let toggle = toggler(value).on_toggle(move |_| msg.clone()).size(20.0);
 
-    let bg = vt.bg_row;
-    let border = vt.border;
     container(
         row![label_col, toggle]
             .spacing(12)
@@ -480,7 +441,11 @@ fn setting_toggle<'a>(
     )
     .padding([10, 12])
     .width(Length::Fill)
-    .style(theme::card_style(bg, border, 6.0))
+    .style(theme::card_style(
+        Palette::BG_PRIMARY(),
+        Palette::BORDER_SUBTLE(),
+        6.0,
+    ))
     .into()
 }
 
@@ -490,12 +455,9 @@ fn option_chip(
     accent: Color,
     msg: impl Into<Message>,
 ) -> Element<'static, Message> {
-    let color = if active { accent } else { theme::TEXT_MUTED };
-    let msg: Message = msg.into();
-
-    button(text(label.to_owned()).size(12).color(color))
-        .on_press(msg)
+    button(text(label.to_owned()).size(12))
+        .on_press(msg.into())
         .padding([5, 10])
-        .style(theme::chip_style(active, color, accent, 6.0))
+        .style(theme::chip_style(active, accent, 6.0))
         .into()
 }
