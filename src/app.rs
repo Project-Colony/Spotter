@@ -833,7 +833,8 @@ impl Spotter {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        use iced::widget::{button, column, container, row, stack, text};
+        use crate::theme::ui_text;
+        use iced::widget::{button, column, container, row, stack};
         use iced::{Alignment, Length, Padding};
 
         let sidebar = views::sidebar::view(self);
@@ -842,10 +843,8 @@ impl Spotter {
         let content: Element<'_, Message> = if !self.data_loaded {
             container(
                 column![
-                    text("Loading your library...")
-                        .size(18)
-                        .color(Palette::TEXT_PRIMARY()),
-                    text("Please wait").size(12).color(Palette::TEXT_MUTED()),
+                    ui_text("Loading your library...", 18).color(Palette::TEXT_PRIMARY()),
+                    ui_text("Please wait", 12).color(Palette::TEXT_MUTED()),
                 ]
                 .spacing(8)
                 .align_x(Alignment::Center),
@@ -918,16 +917,16 @@ impl Spotter {
             let has_undo = !self.recently_deleted.is_empty();
 
             let toast_content: Element<'_, Message> = if has_undo && !is_error {
-                let undo_btn = button(text("Undo").size(13))
+                let undo_btn = button(ui_text("Undo", 13))
                     .on_press(Message::UndoDelete)
                     .padding([4, 12])
                     .style(crate::theme::outline_btn_style(Palette::ACCENT()));
-                row![text(msg.clone()).size(13).color(accent), undo_btn,]
+                row![ui_text(msg.clone(), 13).color(accent), undo_btn,]
                     .spacing(12)
                     .align_y(iced::Alignment::Center)
                     .into()
             } else {
-                text(msg.clone()).size(13).color(accent).into()
+                ui_text(msg.clone(), 13).color(accent).into()
             };
 
             let toast = container(toast_content)

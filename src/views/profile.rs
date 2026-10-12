@@ -1,21 +1,19 @@
 use colony_ui::theme::Palette;
-use iced::widget::{button, column, container, row, rule, space, text, text_input};
+use colony_ui::{sz, ui_font};
+use iced::widget::{button, column, container, row, rule, space, text_input};
 use iced::{Background, Border, Color, Element, Length, Theme};
 
 use super::helpers::{platform_dot, separator};
 use crate::app::{Message, Spotter};
 use crate::models::{GameStatus, Platform};
-use crate::theme;
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
-        text(format!("{} User Profile", theme::icons::PROFILE))
-            .size(24)
+        ui_text(format!("{} User Profile", theme::icons::PROFILE), 24)
             .font(colony_ui::ui_font_bold())
             .color(Palette::TEXT_PRIMARY()),
-        text("Manage your account and data")
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text("Manage your account and data", 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -39,8 +37,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         row![steam_note, gog_note, epic_note].spacing(12),
         row![xbox_note, psn_note].spacing(12),
         crate::keyring::is_unavailable().then(|| {
-            text("No system keyring available: platform tokens are stored unencrypted in Spotter's config folder.")
-                .size(12)
+            ui_text("No system keyring available: platform tokens are stored unencrypted in Spotter's config folder.", 12)
                 .color(Palette::WARNING())
         }),
         data_card,
@@ -86,7 +83,7 @@ fn profile_overview_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
         .to_uppercase()
         .to_string();
 
-    let avatar = container(text(initial).size(38).color(accent))
+    let avatar = container(ui_text(initial, 38).color(accent))
         .width(80)
         .height(80)
         .center_x(80)
@@ -103,16 +100,16 @@ fn profile_overview_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     // Username input inline
     let username_section = column![
-        text(&app.profile.username)
-            .size(24)
-            .color(Palette::TEXT_PRIMARY()),
-        text(format!(
-            "Member since {}",
-            app.settings
-                .date_format
-                .format_date(&app.profile.member_since)
-        ))
-        .size(12)
+        ui_text(&app.profile.username, 24).color(Palette::TEXT_PRIMARY()),
+        ui_text(
+            format!(
+                "Member since {}",
+                app.settings
+                    .date_format
+                    .format_date(&app.profile.member_since)
+            ),
+            12
+        )
         .color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
@@ -140,20 +137,21 @@ fn profile_overview_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     // Username edit
     let username_input = column![
-        text("Username").size(12).color(Palette::TEXT_MUTED()),
+        ui_text("Username", 12).color(Palette::TEXT_MUTED()),
         text_input("Enter your username", &app.profile.username)
             .on_input(Message::UpdateUsername)
             .padding(10)
-            .size(13),
+            .size(sz(13))
+            .font(ui_font()),
     ]
     .spacing(4);
 
     let save_btn = if app.profile_just_saved {
-        button(text("Saved!").size(14))
+        button(ui_text("Saved!", 14))
             .padding([10, 24])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else {
-        button(text("Save Profile").size(14))
+        button(ui_text("Save Profile", 14))
             .on_press(Message::SaveProfile)
             .padding([10, 24])
             .style(theme::primary_btn_style(accent))
@@ -181,9 +179,7 @@ fn profile_overview_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 fn platform_note_card(name: &str, color: Color) -> Element<'static, Message> {
     let card_content = row![
         platform_dot(color),
-        text(format!("{} — managed on Import page", name))
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text(format!("{} — managed on Import page", name), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(10)
     .align_y(iced::Alignment::Center);
@@ -205,11 +201,9 @@ fn data_storage_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
     let accent = Palette::ACCENT();
 
     let header_row = row![
-        text("Data & Export").size(18).color(accent),
+        ui_text("Data & Export", 18).color(accent),
         space::horizontal(),
-        text(format!("{} games stored", app.games.len()))
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text(format!("{} games stored", app.games.len()), 12).color(Palette::TEXT_MUTED()),
     ]
     .align_y(iced::Alignment::Center);
 
@@ -224,16 +218,14 @@ fn data_storage_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
         ]
         .spacing(4)
         .into(),
-        Err(e) => text(e.clone()).size(11).color(Palette::TEXT_DIM()).into(),
+        Err(e) => ui_text(e.clone(), 11).color(Palette::TEXT_DIM()).into(),
     };
 
     // Export/import buttons
     let export_json_btn = button(
         row![
-            text("JSON").size(12).color(Palette::ACCENT()),
-            text(format!("{} Export", theme::icons::EXPORT))
-                .size(12)
-                .color(Palette::TEXT_PRIMARY()),
+            ui_text("JSON", 12).color(Palette::ACCENT()),
+            ui_text(format!("{} Export", theme::icons::EXPORT), 12).color(Palette::TEXT_PRIMARY()),
         ]
         .spacing(6),
     )
@@ -243,10 +235,8 @@ fn data_storage_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     let export_csv_btn = button(
         row![
-            text("CSV").size(12).color(Palette::WARNING()),
-            text(format!("{} Export", theme::icons::EXPORT))
-                .size(12)
-                .color(Palette::TEXT_PRIMARY()),
+            ui_text("CSV", 12).color(Palette::WARNING()),
+            ui_text(format!("{} Export", theme::icons::EXPORT), 12).color(Palette::TEXT_PRIMARY()),
         ]
         .spacing(6),
     )
@@ -256,10 +246,8 @@ fn data_storage_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     let import_btn = button(
         row![
-            text("JSON").size(12).color(Palette::SUCCESS()),
-            text(format!("{} Import", theme::icons::IMPORT))
-                .size(12)
-                .color(Palette::TEXT_PRIMARY()),
+            ui_text("JSON", 12).color(Palette::SUCCESS()),
+            ui_text(format!("{} Import", theme::icons::IMPORT), 12).color(Palette::TEXT_PRIMARY()),
         ]
         .spacing(6),
     )
@@ -280,7 +268,7 @@ fn data_storage_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
         paths_section,
         separator(accent),
         row![export_json_btn, export_csv_btn, import_btn].spacing(8),
-        text(backup_note).size(11).color(Palette::TEXT_DIM()),
+        ui_text(backup_note, 11).color(Palette::TEXT_DIM()),
     ]
     .spacing(10);
 
@@ -298,8 +286,8 @@ fn stat_badge<'a>(label: &'a str, value: String, color: Color) -> Element<'a, Me
     let border_color = color.scale_alpha(0.2);
     container(
         column![
-            text(value).size(15).color(color),
-            text(label).size(10).color(Palette::TEXT_DIM()),
+            ui_text(value, 15).color(color),
+            ui_text(label, 10).color(Palette::TEXT_DIM()),
         ]
         .spacing(2)
         .align_x(iced::Alignment::Center),
@@ -311,8 +299,8 @@ fn stat_badge<'a>(label: &'a str, value: String, color: Color) -> Element<'a, Me
 
 fn data_row<'a>(label: &'a str, value: &str) -> Element<'a, Message> {
     row![
-        text(label).size(12).color(Palette::TEXT_MUTED()).width(100),
-        text(value.to_string()).size(11).color(Palette::TEXT_DIM()),
+        ui_text(label, 12).color(Palette::TEXT_MUTED()).width(100),
+        ui_text(value.to_string(), 11).color(Palette::TEXT_DIM()),
     ]
     .spacing(8)
     .into()

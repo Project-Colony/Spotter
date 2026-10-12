@@ -3,10 +3,14 @@
 //! none of its own, so a theme, accent or high-contrast change reaches every
 //! widget.
 
+use colony_ui::fonts::glyph_font;
 use colony_ui::theme::Palette;
-use colony_ui::{accent_key_to_color, contrast_on};
+use colony_ui::{accent_key_to_color, contrast_on, sz, ui_font};
+use iced::widget::text::{IntoFragment, Rich, Span};
 use iced::widget::{button, container};
 use iced::{Background, Border, Color, Theme};
+
+use crate::app::Message;
 
 /// Nerd Font icon constants (Font Awesome + Material Design Icons).
 /// Some icons are kept as a reference catalog even if not currently used.
@@ -46,6 +50,46 @@ pub mod icons {
     pub const TIMES: &str = "\u{f00d}"; // nf-fa-times
     pub const PLAY: &str = "\u{f04b}"; // nf-fa-play
     pub const CIRCLE_O: &str = "\u{f10c}"; // nf-fa-circle-o
+}
+
+/// Interface text at `sz(base)`: both text-size preferences (Appearance and
+/// Accessibility) scale it, and it is set in the interface font, which turns
+/// into OpenDyslexic with the dyslexia toggle. The Nerd Font glyphs inside it
+/// are set in the glyph font, since OpenDyslexic has none of them.
+pub fn ui_text<'a>(content: impl IntoFragment<'a>, base: u16) -> Rich<'a, (), Message> {
+    let content = content.into_fragment();
+    let spans: Vec<Span<'a, (), iced::Font>> = glyph_runs(&content)
+        .map(|(run, glyph)| {
+            let span = Span::new(run.to_owned());
+            if glyph {
+                span.font(glyph_font())
+            } else {
+                span
+            }
+        })
+        .collect();
+    Rich::with_spans(spans).size(sz(base)).font(ui_font())
+}
+
+/// Nerd Font glyphs live in the private use areas.
+fn is_glyph(c: char) -> bool {
+    matches!(c, '\u{E000}'..='\u{F8FF}' | '\u{F0000}'..='\u{FFFFD}')
+}
+
+/// Split `s` into its runs of glyphs and of plain text, in order.
+fn glyph_runs(s: &str) -> impl Iterator<Item = (&str, bool)> {
+    let mut rest = s;
+    std::iter::from_fn(move || {
+        let first = rest.chars().next()?;
+        let glyph = is_glyph(first);
+        let end = rest
+            .char_indices()
+            .find(|&(_, c)| is_glyph(c) != glyph)
+            .map_or(rest.len(), |(i, _)| i);
+        let (run, tail) = rest.split_at(end);
+        rest = tail;
+        Some((run, glyph))
+    })
 }
 
 /// A shared Colony accent swatch by key (`colony_ui::ACCENT_OVERRIDES`): the
@@ -255,5 +299,26 @@ pub fn pill_style(bg: Color, border_color: Color) -> impl Fn(&Theme) -> containe
             width: 1.0,
         },
         ..container::Style::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::glyph_runs;
+
+    #[test]
+    fn glyphs_are_split_from_the_text_around_them() {
+        let runs: Vec<_> = glyph_runs("\u{f0322}  Library \u{f005}\u{f006}!").collect();
+        assert_eq!(
+            runs,
+            [
+                ("\u{f0322}", true),
+                ("  Library ", false),
+                ("\u{f005}\u{f006}", true),
+                ("!", false),
+            ]
+        );
+        assert_eq!(glyph_runs("Plain").collect::<Vec<_>>(), [("Plain", false)]);
+        assert_eq!(glyph_runs("").count(), 0);
     }
 }

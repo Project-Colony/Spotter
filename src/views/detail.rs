@@ -1,10 +1,11 @@
 use colony_ui::theme::Palette;
-use iced::widget::{button, column, container, progress_bar, row, rule, space, text, text_input};
+use colony_ui::{sz, ui_font};
+use iced::widget::{button, column, container, progress_bar, row, rule, space, text_input};
 use iced::{Background, Border, Element, Length, Theme};
 
 use crate::app::{Message, Screen, Spotter};
 use crate::models::{AchievementsDisplay, GameStatus, Platform};
-use crate::theme;
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     let date_format = app.settings.date_format;
@@ -13,13 +14,14 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
         None => {
             return container(
                 column![
-                    text("Game not found")
-                        .size(20)
-                        .color(Palette::TEXT_PRIMARY()),
-                    button(text(format!("{} Back to Library", theme::icons::BACK)).size(13))
-                        .on_press(Message::NavigateTo(Screen::Library))
-                        .padding([8, 16])
-                        .style(theme::outline_btn_style(Palette::ACCENT())),
+                    ui_text("Game not found", 20).color(Palette::TEXT_PRIMARY()),
+                    button(ui_text(
+                        format!("{} Back to Library", theme::icons::BACK),
+                        13
+                    ))
+                    .on_press(Message::NavigateTo(Screen::Library))
+                    .padding([8, 16])
+                    .style(theme::outline_btn_style(Palette::ACCENT())),
                 ]
                 .spacing(12),
             )
@@ -29,7 +31,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     };
 
     let back_label = format!("{} Back to Library", theme::icons::BACK);
-    let back_btn = button(text(back_label).size(13))
+    let back_btn = button(ui_text(back_label, 13))
         .on_press(Message::NavigateTo(Screen::Library))
         .padding([6, 12])
         .style(theme::outline_btn_style(Palette::ACCENT()));
@@ -56,8 +58,8 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
         } else {
             container(
                 column![
-                    text(&game.title).size(20).color(Palette::TEXT_DIMMER()),
-                    text("No cover image").size(12).color(Palette::TEXT_MUTED()),
+                    ui_text(&game.title, 20).color(Palette::TEXT_DIMMER()),
+                    ui_text("No cover image", 12).color(Palette::TEXT_MUTED()),
                 ]
                 .spacing(4)
                 .align_x(iced::Alignment::Center),
@@ -75,7 +77,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
         }
     };
 
-    let title = text(&game.title).size(32).color(Palette::TEXT_PRIMARY());
+    let title = ui_text(&game.title, 32).color(Palette::TEXT_PRIMARY());
 
     // Favorite toggle
     let is_fav = app.settings.favorites.contains(&game_id);
@@ -84,30 +86,27 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     } else {
         format!("{} Favorite", theme::icons::STAR_O)
     };
-    let fav_btn = button(text(fav_label).size(13))
+    let fav_btn = button(ui_text(fav_label, 13))
         .on_press(Message::ToggleFavorite(game_id))
         .padding([6, 14])
         .style(theme::chip_style(is_fav, Palette::WARNING(), 8.0));
 
     let platform_badge = container(
-        text(format!("{} {}", game.platform.icon(), game.platform))
-            .size(13)
+        ui_text(format!("{} {}", game.platform.icon(), game.platform), 13)
             .color(game.platform.color()),
     )
     .padding([4, 10])
     .style(theme::pill_style(Palette::BG_CARD(), game.platform.color()));
 
     let status_badge = container(
-        text(format!("{} {}", game.status.icon(), game.status))
-            .size(13)
-            .color(game.status.color()),
+        ui_text(format!("{} {}", game.status.icon(), game.status), 13).color(game.status.color()),
     )
     .padding([4, 10])
     .style(theme::pill_style(Palette::BG_CARD(), game.status.color()));
 
     let mut badges = row![platform_badge, status_badge, fav_btn].spacing(8);
     if let Some(appid) = game.steam_appid {
-        let steam_badge = button(text(format!("Steam #{}", appid)).size(11))
+        let steam_badge = button(ui_text(format!("Steam #{}", appid), 11))
             .on_press(Message::OpenUrl(format!(
                 "https://store.steampowered.com/app/{}",
                 appid
@@ -161,11 +160,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     // Description
     if !game.description.is_empty() {
         info_col = info_col.push(rule::horizontal(1));
-        info_col = info_col.push(
-            text(&game.description)
-                .size(12)
-                .color(Palette::TEXT_SECONDARY()),
-        );
+        info_col = info_col.push(ui_text(&game.description, 12).color(Palette::TEXT_SECONDARY()));
     }
 
     // Tags
@@ -173,8 +168,8 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
         info_col = info_col.push(rule::horizontal(1));
         info_col = info_col.push(
             row![
-                text("Tags: ").size(11).color(Palette::TEXT_MUTED()),
-                text(&game.tags).size(11).color(Palette::TEXT_SECONDARY()),
+                ui_text("Tags: ", 11).color(Palette::TEXT_MUTED()),
+                ui_text(&game.tags, 11).color(Palette::TEXT_SECONDARY()),
             ]
             .spacing(4),
         );
@@ -187,41 +182,41 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     let achievements_section = if app.achievements_loading {
         info_card(
             "Achievements",
-            column![text("Loading achievements...")
-                .size(14)
-                .color(Palette::TEXT_MUTED()),]
-            .spacing(10),
+            column![ui_text("Loading achievements...", 14).color(Palette::TEXT_MUTED()),]
+                .spacing(10),
         )
     } else if ach_display == AchievementsDisplay::Hidden {
         // Hidden: don't show achievements at all
-        container(text("").size(1)).into()
+        container(space()).into()
     } else if game.achievements_total > 0 {
         let pct = game.achievement_percent();
         let mut ach_col = column![
             row![
-                text(format!(
-                    "{} / {}",
-                    game.achievements_unlocked, game.achievements_total
-                ))
-                .size(20)
+                ui_text(
+                    format!(
+                        "{} / {}",
+                        game.achievements_unlocked, game.achievements_total
+                    ),
+                    20
+                )
                 .color(Palette::TEXT_PRIMARY()),
                 space::horizontal(),
-                text(format!("{:.1}%", pct))
-                    .size(20)
-                    .color(if pct >= 100.0 {
-                        Palette::WARNING()
-                    } else {
-                        Palette::ACCENT()
-                    }),
+                ui_text(format!("{:.1}%", pct), 20).color(if pct >= 100.0 {
+                    Palette::WARNING()
+                } else {
+                    Palette::ACCENT()
+                }),
             ]
             .align_y(iced::Alignment::Center),
             progress_bar(0.0..=100.0, pct).girth(12),
-            text(if pct >= 100.0 {
-                "All achievements unlocked!"
-            } else {
-                "Keep going!"
-            })
-            .size(12)
+            ui_text(
+                if pct >= 100.0 {
+                    "All achievements unlocked!"
+                } else {
+                    "Keep going!"
+                },
+                12
+            )
             .color(Palette::TEXT_MUTED()),
         ]
         .spacing(10);
@@ -269,7 +264,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
                         } else {
                             Palette::TEXT_DIMMEST()
                         };
-                        container(text("").size(1))
+                        container(space())
                             .width(48)
                             .height(48)
                             .style(move |_: &Theme| container::Style {
@@ -284,10 +279,10 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
                     };
 
                 let mut ach_info =
-                    column![text(&ach.display_name).size(13).color(name_color),].spacing(2);
+                    column![ui_text(&ach.display_name, 13).color(name_color),].spacing(2);
 
                 if !ach.description.is_empty() {
-                    ach_info = ach_info.push(text(&ach.description).size(11).color(desc_color));
+                    ach_info = ach_info.push(ui_text(&ach.description, 11).color(desc_color));
                 }
 
                 // Show unlock date for unlocked achievements
@@ -295,9 +290,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
                     let datetime = date_format.format_timestamp(ach.unlock_time);
                     if !datetime.is_empty() {
                         ach_info = ach_info.push(
-                            text(format!("Unlocked {}", datetime))
-                                .size(10)
-                                .color(Palette::SUCCESS()),
+                            ui_text(format!("Unlocked {}", datetime), 10).color(Palette::SUCCESS()),
                         );
                     }
                 }
@@ -326,9 +319,9 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     } else {
         info_card(
             "Achievements",
-            column![text("No achievements available for this game")
-                .size(14)
-                .color(Palette::TEXT_MUTED()),]
+            column![
+                ui_text("No achievements available for this game", 14).color(Palette::TEXT_MUTED()),
+            ]
             .spacing(10),
         )
     };
@@ -348,10 +341,9 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
             text_input("Add notes about this game...", &game.notes)
                 .on_input(move |s| Message::SetGameNotes(game_id, s))
                 .padding(8)
-                .size(13),
-            text(format!("{} / 2000{}", notes_len, notes_hint))
-                .size(11)
-                .color(notes_counter_color),
+                .size(sz(13))
+                .font(ui_font()),
+            ui_text(format!("{} / 2000{}", notes_len, notes_hint), 11).color(notes_counter_color),
         ]
         .spacing(8),
     );
@@ -376,7 +368,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
         .collect();
     if game.rating.is_some() {
         rating_items.push(
-            button(text("Clear").size(11))
+            button(ui_text("Clear", 11))
                 .on_press(Message::SetGameRating(game_id, None))
                 .padding([6, 10])
                 .style(theme::outline_btn_style(Palette::TEXT_MUTED()))
@@ -386,7 +378,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
     let rating_section = info_card("Rate this Game", row(rating_items).spacing(4));
 
     // Top bar: Back button (left) + Delete button (right)
-    let delete_btn = button(text(format!("{} Delete", theme::icons::DELETE)).size(13))
+    let delete_btn = button(ui_text(format!("{} Delete", theme::icons::DELETE), 13))
         .on_press(Message::ConfirmDeleteGame(game_id))
         .padding([6, 12])
         .style(theme::danger_btn_style());
@@ -414,7 +406,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
 
 fn info_card<'a>(title: &'a str, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     let section = column![
-        text(title).size(14).color(Palette::TEXT_MUTED()),
+        ui_text(title, 14).color(Palette::TEXT_MUTED()),
         content.into(),
     ]
     .spacing(8);
@@ -432,10 +424,8 @@ fn info_card<'a>(title: &'a str, content: impl Into<Element<'a, Message>>) -> El
 
 fn info_row<'a>(label: &'a str, value: impl ToString) -> Element<'a, Message> {
     row![
-        text(label).size(13).color(Palette::TEXT_MUTED()).width(120),
-        text(value.to_string())
-            .size(13)
-            .color(Palette::TEXT_PRIMARY()),
+        ui_text(label, 13).color(Palette::TEXT_MUTED()).width(120),
+        ui_text(value.to_string(), 13).color(Palette::TEXT_PRIMARY()),
     ]
     .spacing(12)
     .into()
@@ -450,7 +440,7 @@ fn status_button<'a>(
 ) -> Element<'a, Message> {
     let color = target.color();
     // Every status keeps its own colour, picked or not.
-    button(text(label).size(12).color(color))
+    button(ui_text(label, 12).color(color))
         .on_press(Message::SetGameStatus(game_id, target))
         .padding([pad, pad + 4])
         .style(theme::chip_style(current == target, color, 6.0))
@@ -464,7 +454,7 @@ fn rating_button<'a>(
     pad: u16,
 ) -> Element<'a, Message> {
     let is_active = current.is_some_and(|r| value <= r);
-    button(text(value.to_string()).size(13))
+    button(ui_text(value.to_string(), 13))
         .on_press(Message::SetGameRating(game_id, Some(value)))
         .padding([pad, pad + 4])
         .style(theme::chip_style(is_active, Palette::WARNING(), 4.0))

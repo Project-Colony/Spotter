@@ -62,6 +62,8 @@ Spotter 0.3 and earlier kept the settings in the library database, with three da
 | `accent_color` Blue, Cyan / Purple / Green / Gold / Red | `blue` / `violet` / `green` / `amber` / `red` |
 | `ui_scale` Small / Normal / Large | `text_size_a11y` small / default / large |
 
+The old scale enlarged the whole window; the text sizes now enlarge the text only, and the Appearance and Accessibility sizes multiply (0.7225x to 1.68x).
+
 ## Style Helpers
 
 Spotter defines no colour of its own. Widgets read the active Colony palette (`colony_ui::theme::Palette`, for example `Palette::TEXT_MUTED()`), so a theme, accent or high-contrast change reaches every screen. Platforms and game statuses use the shared accent swatches (`theme::shared_accent`), the same on every theme; text on a filled button takes `colony_ui::contrast_on` of the fill.

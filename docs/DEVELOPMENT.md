@@ -127,6 +127,8 @@ Always open a fresh connection per operation via `db::open()`. The connection us
 
 Take every colour from the active palette (`colony_ui::theme::Palette::*()`), in view code and in style closures alike, and the style helpers in `theme.rs`. Never write a colour literal: it would ignore the user's theme and high-contrast setting.
 
+Write text with `theme::ui_text(content, base)` rather than `text(..).size(N)`: it sizes the text with `colony_ui::sz(base)`, so both text-size preferences scale it, sets it in the interface font, so the dyslexia font reaches it, and keeps the Nerd Font glyphs inside it in the glyph font. A text input takes `.size(sz(N)).font(ui_font())`.
+
 ## Environment Variables
 
 | Variable | Purpose |

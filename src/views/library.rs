@@ -1,6 +1,7 @@
 use colony_ui::theme::Palette;
+use colony_ui::{sz, ui_font};
 use iced::widget::{
-    button, column, container, progress_bar, row, rule, scrollable, space, text, text_input,
+    button, column, container, progress_bar, row, rule, scrollable, space, text_input,
 };
 use iced::{Background, Border, Element, Length, Theme};
 
@@ -8,17 +9,14 @@ use std::collections::HashSet;
 
 use crate::app::{Message, Screen, Spotter};
 use crate::models::{GameStatus, Platform, Settings, SortOrder};
-use crate::theme;
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
-        text(format!("{} Game Library", theme::icons::LIBRARY))
-            .size(24)
+        ui_text(format!("{} Game Library", theme::icons::LIBRARY), 24)
             .font(colony_ui::ui_font_bold())
             .color(Palette::TEXT_PRIMARY()),
-        text("Track your games across all platforms")
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text("Track your games across all platforms", 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -29,7 +27,8 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     .id(iced::widget::Id::new("library_search"))
     .on_input(Message::SearchChanged)
     .padding(10)
-    .size(14);
+    .size(sz(14))
+    .font(ui_font());
 
     let bp = app.settings.button_padding();
 
@@ -126,7 +125,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 
     // Sort buttons
     let sort_row = row![
-        text("Sort:").size(12).color(Palette::TEXT_MUTED()),
+        ui_text("Sort:", 12).color(Palette::TEXT_MUTED()),
         sort_chip("A-Z", SortOrder::TitleAsc, app.sort_order),
         sort_chip("Z-A", SortOrder::TitleDesc, app.sort_order),
         sort_chip("Playtime", SortOrder::PlaytimeDesc, app.sort_order),
@@ -148,22 +147,20 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         .collect();
 
     // Bulk mode toggle + count
-    let bulk_toggle = button(
-        text(if app.bulk_mode {
+    let bulk_toggle = button(ui_text(
+        if app.bulk_mode {
             "Exit Select"
         } else {
             "Select"
-        })
-        .size(12),
-    )
+        },
+        12,
+    ))
     .on_press(Message::ToggleBulkMode)
     .padding([4, 10])
     .style(theme::chip_style(app.bulk_mode, Palette::WARNING(), 8.0));
 
     let count_text = row![
-        text(format!("{} game(s)", filtered.len()))
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text(format!("{} game(s)", filtered.len()), 12).color(Palette::TEXT_MUTED()),
         space::horizontal(),
         bulk_toggle,
     ]
@@ -182,9 +179,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         };
         container(
             row![
-                text(format!("{} selected", sel_count))
-                    .size(13)
-                    .color(Palette::ACCENT()),
+                ui_text(format!("{} selected", sel_count), 13).color(Palette::ACCENT()),
                 bar_button("All".to_string(), Palette::ACCENT(), Message::BulkSelectAll),
                 bar_button(
                     "None".to_string(),
@@ -217,11 +212,10 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 
     let game_list: Element<Message> = if filtered.is_empty() {
         // Build a helpful empty-state showing which filters are active
-        let mut empty_col = column![text("No games match your filters")
-            .size(18)
-            .color(Palette::TEXT_MUTED()),]
-        .spacing(8)
-        .align_x(iced::Alignment::Center);
+        let mut empty_col =
+            column![ui_text("No games match your filters", 18).color(Palette::TEXT_MUTED()),]
+                .spacing(8)
+                .align_x(iced::Alignment::Center);
 
         // Describe active filters
         let mut active_parts: Vec<String> = Vec::new();
@@ -236,46 +230,34 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         }
         if !active_parts.is_empty() {
             empty_col = empty_col.push(
-                text(format!("Active filters: {}", active_parts.join(", ")))
-                    .size(13)
+                ui_text(format!("Active filters: {}", active_parts.join(", ")), 13)
                     .color(Palette::TEXT_DIM()),
             );
         }
 
         // Suggest clearing filters
         let mut hint_row = row![].spacing(6).align_y(iced::Alignment::Center);
-        hint_row = hint_row.push(
-            text("Try broadening your search or")
-                .size(12)
-                .color(Palette::TEXT_DIM()),
-        );
+        hint_row =
+            hint_row.push(ui_text("Try broadening your search or", 12).color(Palette::TEXT_DIM()));
         if app.filter_status.is_some() {
             hint_row = hint_row.push(
-                button(
-                    text("clear status filter")
-                        .size(12)
-                        .color(Palette::ACCENT()),
-                )
-                .on_press(Message::FilterStatus(None))
-                .padding([4, 8])
-                .style(theme::transparent_btn_style()),
+                button(ui_text("clear status filter", 12).color(Palette::ACCENT()))
+                    .on_press(Message::FilterStatus(None))
+                    .padding([4, 8])
+                    .style(theme::transparent_btn_style()),
             );
         }
         if app.filter_platform.is_some() {
             hint_row = hint_row.push(
-                button(
-                    text("clear platform filter")
-                        .size(12)
-                        .color(Palette::ACCENT()),
-                )
-                .on_press(Message::FilterPlatform(None))
-                .padding([4, 8])
-                .style(theme::transparent_btn_style()),
+                button(ui_text("clear platform filter", 12).color(Palette::ACCENT()))
+                    .on_press(Message::FilterPlatform(None))
+                    .padding([4, 8])
+                    .style(theme::transparent_btn_style()),
             );
         }
         if !app.search_query.is_empty() {
             hint_row = hint_row.push(
-                button(text("clear search").size(12).color(Palette::ACCENT()))
+                button(ui_text("clear search", 12).color(Palette::ACCENT()))
                     .on_press(Message::SearchChanged(String::new()))
                     .padding([4, 8])
                     .style(theme::transparent_btn_style()),
@@ -289,7 +271,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             + (app.filter_platform.is_some() as u8);
         if active_count > 1 {
             empty_col = empty_col.push(
-                button(text("Clear all filters").size(12))
+                button(ui_text("Clear all filters", 12))
                     .on_press(Message::ClearAllFilters)
                     .padding([6, 14])
                     .style(theme::outline_btn_style(Palette::ACCENT())),
@@ -328,7 +310,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             let remaining = total_filtered - limit;
             game_column = game_column.push(
                 container(
-                    button(text(format!("Show more ({} remaining)", remaining)).size(13))
+                    button(ui_text(format!("Show more ({} remaining)", remaining), 13))
                         .on_press(Message::ShowMoreCards)
                         .padding([8, 20])
                         .style(theme::outline_btn_style(Palette::ACCENT())),
@@ -346,24 +328,26 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Onboarding banner for first-time users
     let onboarding: Element<Message> = if app.first_launch {
         let accent = Palette::ACCENT();
-        let import_btn = button(text("Import Games").size(12))
+        let import_btn = button(ui_text("Import Games", 12))
             .on_press(Message::NavigateTo(crate::app::Screen::Import))
             .padding([6, 16])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()));
-        let add_btn = button(text("Add Manually").size(12))
+        let add_btn = button(ui_text("Add Manually", 12))
             .on_press(Message::NavigateTo(crate::app::Screen::AddGame))
             .padding([6, 16])
             .style(theme::outline_btn_style(accent));
-        let dismiss_btn = button(text("Dismiss").size(12).color(Palette::TEXT_MUTED()))
+        let dismiss_btn = button(ui_text("Dismiss", 12).color(Palette::TEXT_MUTED()))
             .on_press(Message::DismissOnboarding)
             .padding([6, 16])
             .style(theme::transparent_btn_style());
         let onboard_card = container(
             column![
-                text("Welcome to Spotter!").size(18).color(accent),
-                text("Import from Steam, GOG, Epic, Xbox, PlayStation — or add games manually.")
-                    .size(13)
-                    .color(Palette::TEXT_SECONDARY()),
+                ui_text("Welcome to Spotter!", 18).color(accent),
+                ui_text(
+                    "Import from Steam, GOG, Epic, Xbox, PlayStation — or add games manually.",
+                    13
+                )
+                .color(Palette::TEXT_SECONDARY()),
                 row![import_btn, add_btn, dismiss_btn].spacing(8),
             ]
             .spacing(8),
@@ -405,7 +389,7 @@ fn filter_chip(
     pad: u16,
 ) -> Element<'static, Message> {
     let color = status.map_or_else(Palette::ACCENT, |s| s.color());
-    button(text(label.to_string()).size(12))
+    button(ui_text(label.to_string(), 12))
         .on_press(Message::FilterStatus(status))
         .padding([pad, 12])
         .style(theme::chip_style(is_active, color, 12.0))
@@ -419,7 +403,7 @@ fn platform_chip(
     pad: u16,
 ) -> Element<'static, Message> {
     let color = platform.map_or_else(Palette::ACCENT, |p| p.color());
-    button(text(label.to_string()).size(11))
+    button(ui_text(label.to_string(), 11))
         .on_press(Message::FilterPlatform(platform))
         .padding([pad.saturating_sub(2), 10])
         .style(theme::chip_style(is_active, color, 10.0))
@@ -427,7 +411,7 @@ fn platform_chip(
 }
 
 fn sort_chip(label: &str, target: SortOrder, current: SortOrder) -> Element<'static, Message> {
-    button(text(label.to_string()).size(11))
+    button(ui_text(label.to_string(), 11))
         .on_press(Message::SetSortOrder(target))
         .padding([4, 8])
         .style(theme::chip_style(
@@ -440,7 +424,7 @@ fn sort_chip(label: &str, target: SortOrder, current: SortOrder) -> Element<'sta
 
 /// A small outlined button of the bulk action bar.
 fn bar_button(label: String, color: iced::Color, msg: Message) -> Element<'static, Message> {
-    button(text(label).size(11))
+    button(ui_text(label, 11))
         .on_press(msg)
         .padding([4, 10])
         .style(theme::outline_btn_style(color))
@@ -481,8 +465,7 @@ fn game_card<'a>(
         } else {
             Some(
                 container(
-                    text(game.title.chars().next().unwrap_or('?').to_string())
-                        .size(22)
+                    ui_text(game.title.chars().next().unwrap_or('?').to_string(), 22)
                         .color(Palette::TEXT_DIMMER()),
                 )
                 .width(120)
@@ -510,14 +493,13 @@ fn game_card<'a>(
         } else {
             Palette::TEXT_DIM()
         };
-        title_items.push(text(check_label).size(14).color(check_color).into());
+        title_items.push(ui_text(check_label, 14).color(check_color).into());
     }
 
     // Favorite star
     if is_favorite {
         title_items.push(
-            text(theme::icons::STAR)
-                .size(14)
+            ui_text(theme::icons::STAR, 14)
                 .color(Palette::WARNING())
                 .into(),
         );
@@ -526,15 +508,14 @@ fn game_card<'a>(
     // Status label (respects show_status_labels setting)
     if settings.show_status_labels {
         title_items.push(
-            text(format!("[{}]", game.status))
-                .size(11)
+            ui_text(format!("[{}]", game.status), 11)
                 .color(status_color)
                 .into(),
         );
     } else {
         // Show a small color dot instead
         title_items.push(
-            container(text("").size(1))
+            container(space())
                 .width(8)
                 .height(8)
                 .style(theme::dot_style(status_color, 8.0))
@@ -542,30 +523,30 @@ fn game_card<'a>(
         );
     }
     title_items.push(
-        text(&game.title)
-            .size(16)
+        ui_text(&game.title, 16)
             .color(Palette::TEXT_PRIMARY())
             .into(),
     );
     title_items.push(space::horizontal().into());
     title_items.push(
-        text(format!("{} {}", game.platform.icon(), game.platform))
-            .size(12)
+        ui_text(format!("{} {}", game.platform.icon(), game.platform), 12)
             .color(platform_color)
             .into(),
     );
 
     let title_row = row(title_items).spacing(8).align_y(iced::Alignment::Center);
 
-    let mut info_items = row![text(&game.genre).size(12).color(Palette::TEXT_MUTED()),].spacing(0);
+    let mut info_items = row![ui_text(&game.genre, 12).color(Palette::TEXT_MUTED()),].spacing(0);
 
     if !game.release_date.is_empty() {
         info_items = info_items.push(
-            text(format!(
-                " · {}",
-                settings.date_format.format_date(&game.release_date)
-            ))
-            .size(12)
+            ui_text(
+                format!(
+                    " · {}",
+                    settings.date_format.format_date(&game.release_date)
+                ),
+                12,
+            )
             .color(Palette::TEXT_DIM()),
         );
     }
@@ -578,26 +559,24 @@ fn game_card<'a>(
         } else {
             Palette::ERROR()
         };
-        info_items = info_items.push(
-            text(format!(" · {}% positive", pct))
-                .size(12)
-                .color(review_color),
-        );
+        info_items =
+            info_items.push(ui_text(format!(" · {}% positive", pct), 12).color(review_color));
     }
 
     info_items = info_items.push(
-        text(format!(
-            " · Last: {}",
-            settings.date_format.format_date(&game.last_played)
-        ))
-        .size(12)
+        ui_text(
+            format!(
+                " · Last: {}",
+                settings.date_format.format_date(&game.last_played)
+            ),
+            12,
+        )
         .color(Palette::TEXT_DIM()),
     );
 
     let info_row = info_items;
 
-    let playtime_text = text(format!("Playtime: {}", game.playtime_display()))
-        .size(12)
+    let playtime_text = ui_text(format!("Playtime: {}", game.playtime_display()), 12)
         .color(Palette::TEXT_PRIMARY());
 
     let stats_row = if game.achievements_total > 0 {
@@ -605,11 +584,13 @@ fn game_card<'a>(
         row![
             playtime_text,
             space::horizontal(),
-            text(format!(
-                "{}/{} ({:.0}%)",
-                game.achievements_unlocked, game.achievements_total, pct
-            ))
-            .size(12)
+            ui_text(
+                format!(
+                    "{}/{} ({:.0}%)",
+                    game.achievements_unlocked, game.achievements_total, pct
+                ),
+                12
+            )
             .color(Palette::TEXT_PRIMARY()),
             container(progress_bar(0.0..=100.0, pct).girth(6)).width(120),
         ]
@@ -619,7 +600,7 @@ fn game_card<'a>(
         row![
             playtime_text,
             space::horizontal(),
-            text("No achievements").size(12).color(Palette::TEXT_DIM()),
+            ui_text("No achievements", 12).color(Palette::TEXT_DIM()),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center)
@@ -629,11 +610,9 @@ fn game_card<'a>(
         Some(r) => {
             let filled = theme::icons::STAR.repeat(r as usize);
             let empty = theme::icons::STAR_O.repeat(10_usize.saturating_sub(r as usize));
-            text(format!("{}{} {}/10", filled, empty, r))
-                .size(11)
-                .color(Palette::WARNING())
+            ui_text(format!("{}{} {}/10", filled, empty, r), 11).color(Palette::WARNING())
         }
-        None => text("Not rated").size(11).color(Palette::TEXT_DIM()),
+        None => ui_text("Not rated", 11).color(Palette::TEXT_DIM()),
     };
 
     let text_spacing = if compact { 3 } else { 6 };
@@ -646,7 +625,7 @@ fn game_card<'a>(
         } else {
             game.description.clone()
         };
-        text_info = text_info.push(text(desc).size(11).color(Palette::TEXT_DIM()));
+        text_info = text_info.push(ui_text(desc, 11).color(Palette::TEXT_DIM()));
     }
 
     let card_content = if let Some(cover) = cover_element {

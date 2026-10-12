@@ -1,20 +1,18 @@
 use colony_ui::theme::Palette;
-use iced::widget::{button, column, container, row, rule, text, text_input};
+use colony_ui::{sz, ui_font};
+use iced::widget::{button, column, container, row, rule, text_input};
 use iced::{Color, Element, Length};
 
 use crate::app::{Message, Screen, Spotter};
 use crate::models::{GameStatus, Platform};
-use crate::theme;
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
-        text(format!("{} Add Game", theme::icons::ADD))
-            .size(24)
+        ui_text(format!("{} Add Game", theme::icons::ADD), 24)
             .font(colony_ui::ui_font_bold())
             .color(Palette::TEXT_PRIMARY()),
-        text("Manually add a game to your library")
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text("Manually add a game to your library", 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -24,7 +22,8 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         text_input("Enter game title...", &app.new_game_title)
             .on_input(Message::AddGameTitleChanged)
             .padding(10)
-            .size(14),
+            .size(sz(14))
+            .font(ui_font()),
     );
 
     // Genre input
@@ -33,7 +32,8 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         text_input("e.g. RPG, Action, Adventure...", &app.new_game_genre)
             .on_input(Message::AddGameGenreChanged)
             .padding(10)
-            .size(14),
+            .size(sz(14))
+            .font(ui_font()),
     );
 
     // Platform picker
@@ -66,17 +66,17 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Buttons
     let can_save = !app.new_game_title.trim().is_empty();
     let save_btn = if can_save {
-        button(text("Add to Library").size(14))
+        button(ui_text("Add to Library", 14))
             .on_press(Message::SaveNewGame)
             .padding([10, 24])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else {
-        button(text("Add to Library").size(14))
+        button(ui_text("Add to Library", 14))
             .padding([10, 24])
             .style(theme::disabled_btn_style())
     };
 
-    let cancel_btn = button(text("Cancel").size(13))
+    let cancel_btn = button(ui_text("Cancel", 13))
         .on_press(Message::NavigateTo(Screen::Library))
         .padding([8, 16])
         .style(theme::outline_btn_style(Palette::TEXT_SECONDARY()));
@@ -114,7 +114,7 @@ fn labeled_section<'a>(
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     column![
-        text(label).size(13).color(Palette::TEXT_PRIMARY()),
+        ui_text(label, 13).color(Palette::TEXT_PRIMARY()),
         content.into(),
     ]
     .spacing(6)
@@ -141,7 +141,7 @@ fn status_btn<'a>(label: &'a str, target: GameStatus, current: GameStatus) -> El
 
 /// One choice of a picker row, tinted with the choice's own colour when picked.
 fn choice_chip(label: &str, active: bool, color: Color, msg: Message) -> Element<'_, Message> {
-    button(text(label).size(12))
+    button(ui_text(label, 12))
         .on_press(msg)
         .padding([6, 12])
         .style(theme::chip_style(active, color, 8.0))

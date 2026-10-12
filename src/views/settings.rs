@@ -1,34 +1,32 @@
 use colony_ui::preferences::Change;
+use colony_ui::sz;
 use colony_ui::theme::Palette;
 use colony_ui::widgets::PreferencesView;
 use colony_ui::Typography;
-use iced::widget::{button, column, container, row, rule, text, toggler};
+use iced::widget::{button, column, container, row, rule, space, toggler};
 use iced::{Color, Element, Length};
 
 use crate::app::{Message, Spotter};
 use crate::messages::SettingsMessage;
 use crate::models::*;
-use crate::theme;
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let saved_indicator: Element<'_, Message> = if app.settings_just_saved {
-        text("Saved!").size(12).color(Palette::SUCCESS()).into()
+        ui_text("Saved!", 12).color(Palette::SUCCESS()).into()
     } else {
-        text("").size(1).into()
+        space().into()
     };
     let header = column![
         row![
-            text(format!("{} Settings", theme::icons::SETTINGS))
-                .size(24)
+            ui_text(format!("{} Settings", theme::icons::SETTINGS), 24)
                 .font(colony_ui::ui_font_bold())
                 .color(Palette::TEXT_PRIMARY()),
             saved_indicator,
         ]
         .spacing(10)
         .align_y(iced::Alignment::Center),
-        text("Customize your Spotter experience")
-            .size(12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text("Customize your Spotter experience", 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -86,7 +84,7 @@ fn section_tab<'a>(
     current: SettingsSection,
     accent: Color,
 ) -> Element<'a, Message> {
-    button(text(label).size(14))
+    button(ui_text(label, 14))
         .on_press(SettingsMessage::ChangeSection(target).into())
         .padding([8, 16])
         .style(theme::chip_style(current == target, accent, 8.0))
@@ -267,7 +265,7 @@ fn general_section(app: &Spotter) -> Element<'_, Message> {
     );
 
     column![
-        text("General").size(18).color(Palette::TEXT_PRIMARY()),
+        ui_text("General", 18).color(Palette::TEXT_PRIMARY()),
         row![default_status_row, default_platform_row].spacing(12),
         rule::horizontal(1),
         row![confirm_delete_row, start_screen_row].spacing(12),
@@ -334,7 +332,7 @@ fn appearances_section(app: &Spotter) -> Element<'_, Message> {
 
     let kit = shared_preferences(app);
     column![
-        text("Appearances").size(18).color(Palette::TEXT_PRIMARY()),
+        ui_text("Appearances", 18).color(Palette::TEXT_PRIMARY()),
         kit.theme_section(),
         kit.colors_section(),
         kit.typography_section(),
@@ -368,9 +366,7 @@ fn accessibility_section(app: &Spotter) -> Element<'_, Message> {
 
     let kit = shared_preferences(app);
     column![
-        text("Accessibility")
-            .size(18)
-            .color(Palette::TEXT_PRIMARY()),
+        ui_text("Accessibility", 18).color(Palette::TEXT_PRIMARY()),
         kit.vision_section(),
         kit.motion_section(),
         kit.reading_section(),
@@ -402,8 +398,8 @@ fn setting_row<'a>(
     control: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let label_col = column![
-        text(title).size(14).color(Palette::TEXT_PRIMARY()),
-        text(description).size(11).color(Palette::TEXT_MUTED()),
+        ui_text(title, 14).color(Palette::TEXT_PRIMARY()),
+        ui_text(description, 11).color(Palette::TEXT_MUTED()),
     ]
     .spacing(2)
     .width(Length::Fill);
@@ -426,13 +422,13 @@ fn setting_toggle<'a>(
     msg: Message,
 ) -> Element<'a, Message> {
     let label_col = column![
-        text(title).size(14).color(Palette::TEXT_PRIMARY()),
-        text(description).size(11).color(Palette::TEXT_MUTED()),
+        ui_text(title, 14).color(Palette::TEXT_PRIMARY()),
+        ui_text(description, 11).color(Palette::TEXT_MUTED()),
     ]
     .spacing(2)
     .width(Length::Fill);
 
-    let toggle = toggler(value).on_toggle(move |_| msg.clone()).size(20.0);
+    let toggle = toggler(value).on_toggle(move |_| msg.clone()).size(sz(20));
 
     container(
         row![label_col, toggle]
@@ -455,7 +451,7 @@ fn option_chip(
     accent: Color,
     msg: impl Into<Message>,
 ) -> Element<'static, Message> {
-    button(text(label.to_owned()).size(12))
+    button(ui_text(label.to_owned(), 12))
         .on_press(msg.into())
         .padding([5, 10])
         .style(theme::chip_style(active, accent, 6.0))
