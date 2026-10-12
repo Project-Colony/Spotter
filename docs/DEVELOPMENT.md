@@ -65,6 +65,8 @@ src/
 ├── app.rs               # Core state machine (~1300 lines)
 ├── models.rs            # All data structures (~800 lines)
 ├── db.rs                # SQLite operations
+├── paths.rs             # File locations, copy from Spotter 0.3
+├── preferences.rs       # preferences.json load/save/import
 ├── theme.rs             # Colors and style helpers
 ├── error.rs             # SpotterError enum
 ├── api_client.rs        # HTTP utilities

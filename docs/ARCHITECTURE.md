@@ -19,6 +19,8 @@ app.rs (1300+ lines)    State machine: Spotter struct, Message enum, update(), v
 │   └── add_game.rs     Manual game entry form
 ├── models.rs           Data structures: Game, Settings, Platform, Achievement, etc.
 ├── db.rs               SQLite: schema, CRUD, playtime history, export/import
+├── paths.rs            File locations (colony_ui::paths) and the copy from Spotter 0.3
+├── preferences.rs      preferences.json: lenient load, save, import from Spotter 0.3
 ├── theme.rs            Color constants, ViewTheme, style helpers
 ├── error.rs            SpotterError enum (migration in progress)
 ├── api_client.rs       HTTP agents, retry logic, URL encoding, browser open

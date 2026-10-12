@@ -15,7 +15,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
         text(format!("{} Game Library", theme::icons::LIBRARY))
             .size(24)
-            .font(theme::FONT_BOLD)
+            .font(colony_ui::ui_font_bold())
             .color(Color::WHITE),
         text("Track your games across all platforms")
             .size(12)
@@ -195,7 +195,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Bulk action bar (shown when items are selected)
     let bulk_bar: Element<Message> = if app.bulk_mode && !app.bulk_selected.is_empty() {
         let sel_count = app.bulk_selected.len();
-        let accent = app.settings.accent_color.color();
+        let accent = colony_ui::theme::Palette::ACCENT();
         let bar_bg = vt.bg_card;
         let bar_border = vt.border;
         container(
@@ -412,7 +412,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 
     // Onboarding banner for first-time users
     let onboarding: Element<Message> = if app.first_launch {
-        let accent = app.settings.accent_color.color();
+        let accent = colony_ui::theme::Palette::ACCENT();
         let import_btn = button(text("Import Games").size(12).color(theme::BG_DARKER))
             .on_press(Message::NavigateTo(crate::app::Screen::Import))
             .padding([6, 16])
@@ -635,8 +635,9 @@ fn game_card<'a>(
 
     // Cover image thumbnail (respects show_covers_in_list setting)
     let cover_element: Option<Element<'a, Message>> = if show_covers {
-        let cover_path = crate::images::cover_path(&game.title);
-        if cover_cache.contains(&game.title) {
+        let cover_path =
+            crate::images::cover_path(&game.title).filter(|_| cover_cache.contains(&game.title));
+        if let Some(cover_path) = cover_path {
             Some(
                 container(
                     iced::widget::image(iced::widget::image::Handle::from_path(&cover_path))

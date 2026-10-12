@@ -421,7 +421,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
         return Err("Xbox API key is required. Get one at xbl.io".into());
     }
 
-    let logger = api_client::ImportLogger::new(&api_client::log_dir());
+    let logger = api_client::ImportLogger::for_imports();
     logger.log("xbox", "Starting Xbox import");
 
     // Step 1: Get XUID (needed for achievement endpoints)

@@ -5,6 +5,8 @@ pub mod db;
 pub mod error;
 pub mod keyring;
 pub mod models;
+pub mod paths;
+pub mod preferences;
 pub mod theme;
 
 mod app;

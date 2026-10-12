@@ -78,6 +78,8 @@ src/
   lib.rs           Module tree; public modules for tests
   app.rs           Application state, messages, update loop
   db.rs            SQLite database operations
+  paths.rs         Where Spotter's files live, and the copy from Spotter 0.3
+  preferences.rs   preferences.json: load, save, import from Spotter 0.3
   keyring.rs       Platform tokens in the OS keyring
   models.rs        Data structures (Game, Platform, Settings, etc.)
   theme.rs         Color constants and ViewTheme
@@ -95,12 +97,22 @@ tests/
 
 ## Data Storage
 
-All data is stored locally:
-- **Database**: `~/.local/share/spotter/spotter.db` (Linux) or equivalent `dirs::data_dir()`
-- **Covers**: `~/.local/share/spotter/covers/`
-- **Achievement icons**: `~/.local/share/spotter/achievement_icons/`
-- **Settings**: Stored as JSON inside the SQLite database
-- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they stay unencrypted in the database and the Profile page says so.
+All data is stored locally, under `Colony/Spotter/` in the platform's folders:
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| Config | `~/.config/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| Data | `~/.local/share/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| Cache | `~/.cache/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\cache\` | `~/Library/Caches/Colony/Spotter/` |
+
+- **Preferences**: `<config>/preferences/preferences.json`
+- **Library database**: `<data>/library/spotter.db` (SQLite)
+- **Exports and the automatic backup**: `<data>/exports/`
+- **Import log**: `<data>/logs/import.log`
+- **Covers and achievement icons**: `<cache>/covers/` and `<cache>/achievement_icons/`, downloaded again when deleted
+- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they are kept unencrypted in `<config>/credentials/tokens.json`, readable by your user only, and the Profile page says so.
+
+Spotter 0.3 and earlier kept everything in the config folder (`data/`, `exports/`, `logs/`, `cache/`). The first start of a newer Spotter copies the library, the exports and the log to the folders above, imports the settings from the old database into `preferences.json`, and leaves the old files where they are.
 
 ## Code signing policy
 
@@ -115,7 +127,7 @@ Team roles and members:
 
 ### Privacy policy
 
-Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in the local database instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
+Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in a file of its config folder that only your user can read instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
 
 - **Imports, when you start one** from the Import screen. Spotter contacts the platform you picked and sends it the credentials you entered for it, plus the ids of your games:
   - Steam: `api.steampowered.com` (your Web API key and Steam ID, to list owned games), `steamcommunity.com` (your Steam ID, to read achievements from your profile) and `store.steampowered.com` (game details).

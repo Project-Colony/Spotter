@@ -11,7 +11,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
         text(format!("{} Statistics", theme::icons::STATS))
             .size(24)
-            .font(theme::FONT_BOLD)
+            .font(colony_ui::ui_font_bold())
             .color(Color::WHITE),
         text("Overview of your gaming journey")
             .size(12)

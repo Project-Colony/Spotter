@@ -299,7 +299,7 @@ fn parse_play_duration(duration: &str) -> u32 {
 pub fn full_import(npsso: &str) -> Result<Vec<Game>, String> {
     let access_token = exchange_npsso(npsso)?;
 
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("psn", "Starting PlayStation import");
 
     // Fetch trophy titles (primary source — has achievement data)

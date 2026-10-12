@@ -1,6 +1,6 @@
 # Configuration
 
-All settings are stored as a JSON blob in the SQLite `settings` table and applied immediately on change.
+All preferences are saved to `preferences.json` in Spotter's config folder (`~/.config/Colony/Spotter/preferences/preferences.json` on Linux; see [Data Storage](../README.md#data-storage) for the other platforms) and applied immediately on change.
 
 ## Settings Overview
 
@@ -16,7 +16,7 @@ All settings are stored as a JSON blob in the SQLite `settings` table and applie
 | `toast_duration` | ToastDuration | Normal (4s) | Auto-dismiss duration: Short (2s), Normal (4s), Long (8s) |
 | `date_format` | DateFormat | YYYY-MM-DD | Date display: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY |
 | `default_sort_order` | SortOrder | Title A-Z | Default library sort |
-| `remember_filters` | bool | false | Persist filter selections across sessions |
+| `remember_filters` | bool | true | Persist filter selections across sessions |
 | `show_game_descriptions` | bool | false | Show store descriptions in library cards |
 | `achievements_display` | AchievementsDisplay | Full | Full list / Summary only / Hidden |
 | `download_covers_auto` | bool | true | Automatically download cover art on import |
@@ -25,54 +25,42 @@ All settings are stored as a JSON blob in the SQLite `settings` table and applie
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `theme_mode` | ThemeMode | Dark | Dark / Darker / Midnight |
-| `accent_color` | AccentColor | Blue | Blue / Purple / Green / Gold / Red / Cyan |
 | `compact_list` | bool | false | Reduced spacing in game list (4px vs 8px) |
 | `show_covers_in_list` | bool | true | Show cover thumbnails in library |
-| `ui_scale` | UiScale | Normal | Small (0.85x) / Normal (1.0x) / Large (1.2x) |
 | `sidebar_width` | u16 | 220 | Sidebar width in pixels (160-400, presets: 180/220/280) |
 
 ### Accessibility
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `high_contrast` | bool | false | Increase text/border contrast |
 | `show_status_labels` | bool | true | Show text labels alongside status dots |
 | `large_click_targets` | bool | false | Increase button padding (8px → 12px) |
 
-## Theme Modes
+### Shared Colony preferences
 
-Three dark theme variants with progressively darker backgrounds:
+Theme, accent, text sizes and the accessibility switches are the ones every Colony program has (`colony_ui::preferences::StandardPreferences`), saved in the same file under the same names:
 
-| Element | Dark | Darker | Midnight |
-|---------|------|--------|----------|
-| Main bg | `rgb(0.10, 0.10, 0.14)` | `rgb(0.06, 0.06, 0.09)` | `rgb(0.02, 0.02, 0.05)` |
-| Sidebar bg | `rgb(0.08, 0.08, 0.12)` | `rgb(0.04, 0.04, 0.07)` | `rgb(0.01, 0.01, 0.03)` |
-| Card bg | `rgb(0.12, 0.12, 0.16)` | `rgb(0.08, 0.08, 0.11)` | `rgb(0.04, 0.04, 0.07)` |
-| Row bg | `rgb(0.09, 0.09, 0.13)` | `rgb(0.06, 0.06, 0.09)` | `rgb(0.03, 0.03, 0.05)` |
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `selected_theme`, `selected_variant` | string | `gruvbox`, `dark` | A shared Colony theme; an unknown one falls back to Gruvbox dark |
+| `selected_accent` | string | none | Accent override (`red`, `orange`, `yellow`, `green`, `blue`, `indigo`, `violet`, `amber`); none uses the theme's own |
+| `auto_accent` | bool | false | Use the theme's accent even when one is picked |
+| `font_size` | small / default / large | default | Appearance text size |
+| `animations` | bool | true | Animations and fades |
+| `high_contrast` | bool | false | Push text and borders away from the background |
+| `dyslexia_font` | bool | false | Use OpenDyslexic |
+| `reduce_motion` | bool | false | Turn every animation off |
+| `text_size_a11y` | small / default / large / xlarge | default | Accessibility text size, multiplied with `font_size` |
 
-## Accent Colors
+## Upgrading from Spotter 0.3
 
-| Name | RGB | Usage |
-|------|-----|-------|
-| Blue | `rgb(0.6, 0.8, 1.0)` | Default. Sidebar title, active tabs, filter chips |
-| Purple | `rgb(0.7, 0.5, 0.9)` | Alternative accent |
-| Green | `rgb(0.4, 0.9, 0.5)` | Nature/organic theme |
-| Gold | `rgb(1.0, 0.85, 0.3)` | Warm/premium theme |
-| Red | `rgb(1.0, 0.45, 0.45)` | Bold/aggressive theme |
-| Cyan | `rgb(0.3, 0.9, 0.9)` | Cool/tech theme |
+Spotter 0.3 and earlier kept the settings in the library database, with three dark themes, six accents and an interface scale of its own. The first start of a newer Spotter imports them into `preferences.json`:
 
-## High Contrast Mode
-
-When enabled, text and border colors shift toward higher luminance:
-
-| Element | Normal | High Contrast |
-|---------|--------|---------------|
-| Border | `rgb(0.18, 0.18, 0.24)` | `rgb(0.35, 0.35, 0.45)` |
-| Text Muted | `rgb(0.5, 0.5, 0.6)` | `rgb(0.6, 0.6, 0.7)` |
-| Text Dim | `rgb(0.4, 0.4, 0.5)` | `rgb(0.5, 0.5, 0.6)` |
-| Text Secondary | `rgb(0.6, 0.6, 0.7)` | `rgb(0.7, 0.7, 0.8)` |
-| Text Light | `rgb(0.7, 0.7, 0.8)` | `rgb(1.0, 1.0, 1.0)` |
+| Old setting | Becomes |
+|-------------|---------|
+| `theme_mode` Dark / Darker / Midnight | Tokyo Night night / Material deep ocean / Modus vivendi |
+| `accent_color` Blue, Cyan / Purple / Green / Gold / Red | `blue` / `violet` / `green` / `amber` / `red` |
+| `ui_scale` Small / Normal / Large | `text_size_a11y` small / default / large |
 
 ## Style Helpers
 
@@ -93,8 +81,8 @@ Reusable style functions in `theme.rs`:
 
 ## Settings Schema Versioning
 
-Settings include a `version` field (currently `1`) with `#[serde(default)]` on newer fields. This allows older settings JSON to deserialize without breaking, with new fields taking their defaults.
+Preferences include a `version` field (currently `2`: the move to `preferences.json`), and `Settings` is `#[serde(default)]`, so a missing field takes its default.
 
-`db::load_settings` also reads the stored JSON one field at a time when the whole struct does not parse: a value this build does not accept (for example a theme added by a newer version) falls back to that field's default, and every other setting keeps its stored value.
+`preferences::parse` also reads the file one field at a time when the whole struct does not parse: a value this build does not accept (for example one added by a newer version) falls back to that field's default, and every other preference keeps its stored value.
 
-If the startup load fails anyway, Spotter shows an error and runs on defaults, and refuses every write of saved data for the rest of the session: settings, profile and game saves, deletions, exports and the auto-backup are all refused (`Spotter::spawn_write`), so the data on disk stays as it was.
+If the startup load fails anyway, for example because `preferences.json` is not JSON at all, Spotter shows an error and runs on defaults, and refuses every write of saved data for the rest of the session: preferences, profile and game saves, deletions, exports and the auto-backup are all refused (`Spotter::spawn_write`), so the data on disk stays as it was.

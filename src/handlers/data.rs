@@ -31,6 +31,7 @@ impl Spotter {
                 self.profile = profile;
                 self.playtime_data = playtime;
                 self.settings = settings;
+                self.settings.standard.apply();
                 // Apply start screen setting
                 self.screen = match self.settings.start_screen {
                     StartScreen::Statistics => crate::app::Screen::Statistics,
@@ -96,7 +97,7 @@ impl Spotter {
         match db::export_games_json_from_slice(&self.games) {
             Ok(json) => self.spawn_write(
                 move || {
-                    let export_path = db::exports_dir().join("spotter_export.json");
+                    let export_path = crate::paths::layout()?.exports.join("spotter_export.json");
                     std::fs::write(&export_path, &json)
                         .map_err(|e| format!("Write error: {}", e))?;
                     Ok(export_path.to_string_lossy().to_string())
@@ -114,7 +115,7 @@ impl Spotter {
         match db::export_games_csv_from_slice(&self.games) {
             Ok(csv) => self.spawn_write(
                 move || {
-                    let export_path = db::exports_dir().join("spotter_export.csv");
+                    let export_path = crate::paths::layout()?.exports.join("spotter_export.csv");
                     std::fs::write(&export_path, &csv)
                         .map_err(|e| format!("Write error: {}", e))?;
                     Ok(export_path.to_string_lossy().to_string())
@@ -241,7 +242,9 @@ impl Spotter {
                 let backup_task = match db::export_games_json_from_slice(&self.games) {
                     Ok(json) => self.spawn_write(
                         move || {
-                            let path = db::exports_dir().join("spotter_auto_backup.json");
+                            let path = crate::paths::layout()?
+                                .exports
+                                .join("spotter_auto_backup.json");
                             std::fs::write(&path, &json)
                                 .map_err(|e| format!("Auto-backup write error: {}", e))?;
                             eprintln!("[app] Auto-backup saved to {:?}", path);
@@ -528,39 +531,41 @@ impl Spotter {
         crate::app::spawn_task(f, msg)
     }
 
-    /// Save profile to database and OS keyring in a background thread.
+    /// Save the profile to the database and its tokens to the OS keyring, in a
+    /// background thread.
     pub(crate) fn save_profile_task(&self) -> Task<Message> {
         let profile = self.profile.clone();
         self.spawn_write(
             move || {
                 let conn = db::open()?;
-                crate::keyring::save_profile(&conn, &profile)?;
+                let file = &crate::paths::layout()?.credentials;
+                crate::keyring::save_profile(&conn, file, &profile)?;
                 Ok(())
             },
             Message::ProfileSaved,
         )
     }
 
-    /// Silently persist the profile to the database and OS keyring (no success toast).
+    /// Like `save_profile_task`, without a success toast.
     pub(crate) fn persist_profile(&self) -> Task<Message> {
         let profile = self.profile.clone();
         self.spawn_write(
             move || {
                 let conn = db::open()?;
-                crate::keyring::save_profile(&conn, &profile)?;
+                let file = &crate::paths::layout()?.credentials;
+                crate::keyring::save_profile(&conn, file, &profile)?;
                 Ok(())
             },
             Message::ProfileAutoSaved,
         )
     }
 
-    /// Persist settings to the database.
+    /// Persist the preferences to `preferences.json`.
     pub(crate) fn persist_settings(&self) -> Task<Message> {
         let settings = self.settings.clone();
         self.spawn_write(
             move || {
-                let conn = db::open()?;
-                db::save_settings(&conn, &settings)?;
+                crate::preferences::save(&crate::paths::layout()?.preferences, &settings)?;
                 Ok(())
             },
             |r| Message::Settings(crate::messages::SettingsMessage::Saved(r)),

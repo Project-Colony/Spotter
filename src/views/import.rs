@@ -8,12 +8,12 @@ use crate::theme::{self, ViewTheme};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let vt = ViewTheme::from_settings(&app.settings);
-    let accent = app.settings.accent_color.color();
+    let accent = colony_ui::theme::Palette::ACCENT();
 
     let header = column![
         text(format!("{} Import Games", theme::icons::IMPORT))
             .size(24)
-            .font(theme::FONT_BOLD)
+            .font(colony_ui::ui_font_bold())
             .color(Color::WHITE),
         text("Import your game library from Steam, GOG, and more")
             .size(12)
@@ -752,7 +752,7 @@ fn import_history_card<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Messa
         return column![].into();
     }
 
-    let accent = app.settings.accent_color.color();
+    let accent = colony_ui::theme::Palette::ACCENT();
     let mut log_col = column![].spacing(4);
 
     for entry in app.import_history.iter().rev().take(10) {

@@ -63,8 +63,9 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
 
     // Cover image
     let cover_element: Element<'_, Message> = {
-        let cover_path = crate::images::cover_path(&game.title);
-        if app.cover_cache.contains(&game.title) {
+        let cover_path = crate::images::cover_path(&game.title)
+            .filter(|_| app.cover_cache.contains(&game.title));
+        if let Some(cover_path) = cover_path {
             container(
                 iced::widget::image(iced::widget::image::Handle::from_path(&cover_path))
                     .width(460)
@@ -310,14 +311,14 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
                     let icon_path = if ach.unlocked {
                         // Unlocked: use colored icon
                         colored_path
-                    } else if gray_path.exists() {
+                    } else if gray_path.as_ref().is_some_and(|p| p.exists()) {
                         // Locked: prefer gray icon
                         gray_path
                     } else {
                         // Locked but no gray icon: fall back to colored
                         colored_path
                     };
-                    if icon_path.exists() {
+                    if let Some(icon_path) = icon_path.filter(|p| p.exists()) {
                         let img =
                             iced::widget::image(iced::widget::image::Handle::from_path(&icon_path))
                                 .width(48)

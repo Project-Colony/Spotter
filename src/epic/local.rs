@@ -138,7 +138,7 @@ pub fn full_import_local() -> Result<Vec<Game>, String> {
         );
     }
 
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("epic", "Starting Epic Games local import");
 
     eprintln!("[epic] Found {} local games", manifests.len());

@@ -1,5 +1,7 @@
 use std::collections::{BTreeSet, HashSet, VecDeque};
 
+use colony_ui::preferences::Change;
+use colony_ui::theme::Palette;
 use iced::{Element, Task, Theme};
 
 use crate::db;
@@ -102,6 +104,10 @@ pub enum Message {
     SaveNewGame,
     // Settings (delegated to handlers/settings.rs)
     Settings(SettingsMessage),
+    /// A change from the shared Colony preferences widgets.
+    Preference(Change),
+    /// Open or close a collapsible preferences section, by its key.
+    TogglePreferenceSection(&'static str),
     // Undo deletion
     UndoDelete,
     PermanentDelete(Vec<i64>),
@@ -186,6 +192,8 @@ pub struct Spotter {
     // Settings
     pub settings: Settings,
     pub settings_section: SettingsSection,
+    /// Preferences sections the user opened; every section starts collapsed.
+    pub preference_sections: HashSet<String>,
     // Undo delete (supports single + bulk)
     pub recently_deleted: Vec<(Game, i64)>,
     // Profile save feedback
@@ -247,6 +255,7 @@ impl Default for Spotter {
             new_game_status: GameStatus::Unplayed,
             settings: Settings::default(),
             settings_section: SettingsSection::General,
+            preference_sections: HashSet::new(),
             recently_deleted: Vec::new(),
             profile_just_saved: false,
             settings_just_saved: false,
@@ -290,12 +299,12 @@ impl Spotter {
     pub(crate) fn refresh_cover_cache(&mut self) {
         self.cover_cache.clear();
         for g in &self.games {
-            if crate::images::cover_path(&g.title).exists() {
+            if crate::images::cover_path(&g.title).is_some_and(|p| p.exists()) {
                 self.cover_cache.insert(g.title.clone());
             }
         }
         for g in &self.import_queue {
-            if crate::images::cover_path(&g.title).exists() {
+            if crate::images::cover_path(&g.title).is_some_and(|p| p.exists()) {
                 self.cover_cache.insert(g.title.clone());
             }
         }
@@ -700,6 +709,15 @@ impl Spotter {
             Message::Settings(settings_msg) => {
                 return self.handle_settings(settings_msg);
             }
+            Message::Preference(change) => {
+                self.settings.standard.update(change);
+                return self.persist_settings();
+            }
+            Message::TogglePreferenceSection(key) => {
+                if !self.preference_sections.remove(key) {
+                    self.preference_sections.insert(key.to_string());
+                }
+            }
             Message::ToggleFavorite(id) => {
                 if let Some(pos) = self.settings.favorites.iter().position(|&fid| fid == id) {
                     self.settings.favorites.remove(pos);
@@ -888,12 +906,12 @@ impl Spotter {
             });
             layers.push(backdrop.into());
 
-            let modal_bg = self.settings.theme_mode.bg_card();
+            let modal_bg = Palette::BG_CARD();
             let modal_card = container(
                 column![
                     text(format!("{} Delete Game", crate::theme::icons::DELETE))
                         .size(20)
-                        .font(crate::theme::FONT_BOLD)
+                        .font(colony_ui::ui_font_bold())
                         .color(crate::theme::DANGER),
                     text(format!(
                         "Are you sure you want to delete \"{}\"?",
@@ -976,12 +994,12 @@ impl Spotter {
             });
             layers.push(backdrop.into());
 
-            let modal_bg = self.settings.theme_mode.bg_card();
+            let modal_bg = Palette::BG_CARD();
             let modal_card = container(
                 column![
                     text(format!("{} Bulk Delete", crate::theme::icons::DELETE))
                         .size(20)
-                        .font(crate::theme::FONT_BOLD)
+                        .font(colony_ui::ui_font_bold())
                         .color(crate::theme::DANGER),
                     text(format!("Are you sure you want to delete {} games?", count))
                         .size(14)
@@ -1058,7 +1076,7 @@ impl Spotter {
             };
 
             let has_undo = !self.recently_deleted.is_empty();
-            let toast_bg = self.settings.theme_mode.bg_card();
+            let toast_bg = Palette::BG_CARD();
 
             let toast_content: Element<'_, Message> = if has_undo && !is_error {
                 let undo_btn = button(text("Undo").size(13).color(crate::theme::ACCENT_BLUE))
@@ -1110,12 +1128,20 @@ impl Spotter {
         stack(layers).into()
     }
 
+    /// iced's own widgets (text inputs, pickers, scrollbars) in the colours
+    /// of the active Colony theme.
     pub fn theme(&self) -> Theme {
-        match self.settings.theme_mode {
-            ThemeMode::Dark => Theme::Dark,
-            ThemeMode::Darker => Theme::Moonfly,
-            ThemeMode::Midnight => Theme::Oxocarbon,
-        }
+        Theme::custom(
+            "Colony",
+            iced::theme::Palette {
+                background: Palette::BG_PRIMARY(),
+                text: Palette::TEXT_PRIMARY(),
+                primary: Palette::ACCENT(),
+                success: Palette::SUCCESS(),
+                warning: Palette::WARNING(),
+                danger: Palette::ERROR(),
+            },
+        )
     }
 
     pub fn filtered_games(&self) -> Vec<(usize, &Game)> {
@@ -1249,24 +1275,28 @@ where
 }
 
 fn load_data() -> Result<LoadResult, String> {
+    let layout = crate::paths::layout()?;
     let conn = db::open()?;
     let games = db::load_games(&conn)?;
     crate::keyring::init();
-    let profile = crate::keyring::load_profile(&conn)?;
+    let profile = crate::keyring::load_profile(&conn, &layout.credentials)?;
     let playtime = db::get_daily_playtime(&conn, 30)?;
-    let settings = db::load_settings(&conn)?;
+    let settings = crate::preferences::load(&layout.preferences, &conn)?;
     Ok((games, profile, playtime, settings))
 }
 
 pub fn run() -> iced::Result {
-    iced::application(boot, Spotter::update, Spotter::view)
+    // The Colony fonts (and their licences) ship inside colony-ui.
+    colony_ui::fonts::BYTES
+        .into_iter()
+        .fold(
+            iced::application(boot, Spotter::update, Spotter::view),
+            |app, font| app.font(font),
+        )
         .title("Spotter — Game Tracker")
         .theme(Spotter::theme)
         .subscription(Spotter::subscription)
-        .font(include_bytes!("../assets/fonts/JetBrainsMonoNerdFont-Regular.ttf").as_slice())
-        .font(include_bytes!("../assets/fonts/JetBrainsMonoNerdFont-Bold.ttf").as_slice())
-        .default_font(iced::Font::with_name("JetBrainsMono NF"))
-        .scale_factor(|app: &Spotter| app.settings.ui_scale.factor())
+        .default_font(colony_ui::ui_font())
         .window(iced::window::Settings {
             icon: window_icon(),
             ..Default::default()
@@ -1281,8 +1311,22 @@ fn window_icon() -> Option<iced::window::Icon> {
 }
 
 fn boot() -> (Spotter, Task<Message>) {
+    // The saved theme and sizes from the first frame on. The full load reads
+    // the preferences again, and imports an older Spotter's if there are none.
+    let settings = crate::paths::layout()
+        .ok()
+        .and_then(|layout| std::fs::read_to_string(&layout.preferences).ok())
+        .and_then(|json| crate::preferences::parse(&json).ok())
+        .unwrap_or_default();
+    settings.standard.apply();
     let load_task = spawn_task(load_data, |r| Message::DataLoaded(Box::new(r)));
-    (Spotter::default(), load_task)
+    (
+        Spotter {
+            settings,
+            ..Spotter::default()
+        },
+        load_task,
+    )
 }
 
 #[cfg(test)]

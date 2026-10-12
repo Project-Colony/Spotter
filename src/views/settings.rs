@@ -1,3 +1,6 @@
+use colony_ui::preferences::Change;
+use colony_ui::widgets::PreferencesView;
+use colony_ui::Typography;
 use iced::widget::{button, column, container, row, rule, text, toggler};
 use iced::{Background, Border, Color, Element, Length, Theme};
 
@@ -18,7 +21,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         row![
             text(format!("{} Settings", theme::icons::SETTINGS))
                 .size(24)
-                .font(theme::FONT_BOLD)
+                .font(colony_ui::ui_font_bold())
                 .color(Color::WHITE),
             saved_indicator,
         ]
@@ -30,7 +33,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     ]
     .spacing(4);
 
-    let accent = app.settings.accent_color.color();
+    let accent = colony_ui::theme::Palette::ACCENT();
 
     // Section tabs
     let tab_bar = row![
@@ -320,62 +323,6 @@ fn general_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
 fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
     let settings = &app.settings;
 
-    // Theme mode
-    let theme_row = setting_row(
-        "Theme",
-        "Controls the overall darkness level of the interface",
-        row(ThemeMode::all().iter().copied().map(|t| {
-            let active = settings.theme_mode == t;
-            option_chip(
-                &t.to_string(),
-                active,
-                theme::ACCENT_BLUE,
-                SettingsMessage::ThemeMode(t),
-            )
-        }))
-        .spacing(4),
-        vt,
-    );
-
-    // Accent color
-    let accent_row = setting_row(
-        "Accent color",
-        "Highlight color used throughout the interface",
-        row(AccentColor::all().iter().copied().map(|c| {
-            let active = settings.accent_color == c;
-            color_swatch(
-                &c.to_string(),
-                c.color(),
-                active,
-                SettingsMessage::AccentColor(c),
-            )
-        }))
-        .spacing(4),
-        vt,
-    );
-
-    // UI scale
-    let scale_row = setting_row(
-        "UI scale",
-        "Adjust text and element sizes",
-        row(UiScale::all().iter().copied().map(|s| {
-            let active = settings.ui_scale == s;
-            let label = match s {
-                UiScale::Small => "Small (85%)",
-                UiScale::Normal => "Normal (100%)",
-                UiScale::Large => "Large (120%)",
-            };
-            option_chip(
-                label,
-                active,
-                theme::ACCENT_BLUE,
-                SettingsMessage::UiScale(s),
-            )
-        }))
-        .spacing(4),
-        vt,
-    );
-
     // Compact list
     let compact_row = setting_toggle(
         "Compact library list",
@@ -422,12 +369,15 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         vt,
     );
 
+    let kit = shared_preferences(app);
     column![
         text("Appearances").size(18).color(theme::TEXT_LIGHT),
-        row![theme_row, accent_row].spacing(12),
+        kit.theme_section(),
+        kit.colors_section(),
+        kit.typography_section(),
+        kit.effects_section(),
         rule::horizontal(1),
-        row![scale_row, sidebar_row].spacing(12),
-        rule::horizontal(1),
+        sidebar_row,
         row![compact_row, covers_row].spacing(12),
     ]
     .spacing(16)
@@ -438,14 +388,6 @@ fn appearances_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
 
 fn accessibility_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
     let settings = &app.settings;
-
-    let high_contrast_row = setting_toggle(
-        "High contrast mode",
-        "Increase contrast for text and borders to improve readability",
-        settings.high_contrast,
-        SettingsMessage::HighContrast.into(),
-        vt,
-    );
 
     let status_labels_row = setting_toggle(
         "Show status labels",
@@ -463,16 +405,33 @@ fn accessibility_section(app: &Spotter, vt: ViewTheme) -> Element<'_, Message> {
         vt,
     );
 
+    let kit = shared_preferences(app);
     column![
         text("Accessibility").size(18).color(theme::TEXT_LIGHT),
-        row![high_contrast_row, status_labels_row].spacing(12),
-        large_targets_row,
+        kit.vision_section(),
+        kit.motion_section(),
+        kit.reading_section(),
+        rule::horizontal(1),
+        row![status_labels_row, large_targets_row].spacing(12),
     ]
     .spacing(16)
     .into()
 }
 
 // ───── Helpers ─────
+
+/// The shared Colony preferences sections, bound to Spotter's messages.
+fn shared_preferences(
+    app: &Spotter,
+) -> PreferencesView<'_, fn(Change) -> Message, fn(&'static str) -> Message> {
+    PreferencesView::new(
+        Typography::current(),
+        &app.settings.standard,
+        &app.preference_sections,
+        Message::Preference,
+        Message::TogglePreferenceSection,
+    )
+}
 
 fn setting_row<'a>(
     title: &'a str,
@@ -538,55 +497,5 @@ fn option_chip(
         .on_press(msg)
         .padding([5, 10])
         .style(theme::chip_style(active, color, accent, 6.0))
-        .into()
-}
-
-fn color_swatch(
-    label: &str,
-    color: Color,
-    active: bool,
-    msg: impl Into<Message>,
-) -> Element<'static, Message> {
-    let msg: Message = msg.into();
-    let dot = container(text("").size(1))
-        .width(Length::Fixed(16.0))
-        .height(Length::Fixed(16.0))
-        .style(move |_: &Theme| container::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                radius: 8.0.into(),
-                ..Border::default()
-            },
-            ..container::Style::default()
-        });
-
-    let lbl = text(label.to_owned())
-        .size(12)
-        .color(if active { color } else { theme::TEXT_MUTED });
-
-    button(row![dot, lbl].spacing(6).align_y(iced::Alignment::Center))
-        .on_press(msg)
-        .padding([5, 10])
-        .style(move |_: &Theme, _| {
-            let bg = if active {
-                Color::from_rgb(0.14, 0.14, 0.20)
-            } else {
-                theme::BG_BUTTON
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 6.0.into(),
-                    color: if active {
-                        Color { a: 0.4, ..color }
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
         .into()
 }

@@ -9,6 +9,9 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 iced = { version = "0.14.0", features = ["image"] }
+# The shared Colony design system: themes, fonts, labels, preferences, paths.
+# Built on iced 0.14 exactly, so the two move together.
+colony-ui = "0.1.6"
 ureq = { version = "3.4.2", features = ["json"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

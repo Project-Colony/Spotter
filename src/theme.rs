@@ -1,16 +1,8 @@
+use colony_ui::theme::Palette;
 use iced::widget::{button, container};
-use iced::{Background, Border, Color, Font, Theme};
+use iced::{Background, Border, Color, Theme};
 
 use crate::models::{DateFormat, Settings};
-
-// ── Font ──
-
-/// Bold weight of the JetBrainsMono Nerd Font.
-pub const FONT_BOLD: Font = Font {
-    family: iced::font::Family::Name("JetBrainsMono NF"),
-    weight: iced::font::Weight::Bold,
-    ..Font::DEFAULT
-};
 
 /// Nerd Font icon constants (Font Awesome + Material Design Icons).
 /// Some icons are kept as a reference catalog even if not currently used.
@@ -164,7 +156,8 @@ pub fn lighten(color: Color, amount: f32) -> Color {
     }
 }
 
-/// Pre-computed theme values derived from user Settings.
+/// The active Colony palette's colours, plus the layout choices that come
+/// from the user's Settings.
 /// Create with `ViewTheme::from_settings(&app.settings)` at the top of each view.
 #[derive(Clone, Copy)]
 #[allow(dead_code)]
@@ -184,24 +177,19 @@ pub struct ViewTheme {
 }
 
 impl ViewTheme {
+    /// High contrast is part of the active palette (`colony_ui::set_high_contrast`).
     pub fn from_settings(s: &Settings) -> Self {
-        let hc = s.high_contrast;
-        let lt = s.large_click_targets;
         Self {
-            bg_main: s.theme_mode.bg_main(),
-            bg_card: s.theme_mode.bg_card(),
-            bg_row: s.theme_mode.bg_row(),
-            bg_sidebar: s.theme_mode.bg_sidebar(),
-            border: if hc {
-                Color::from_rgb(0.35, 0.35, 0.45)
-            } else {
-                BORDER
-            },
-            text_muted: if hc { TEXT_SECONDARY } else { TEXT_MUTED },
-            text_dim: if hc { TEXT_MUTED } else { TEXT_DIM },
-            text_secondary: if hc { TEXT_LIGHT } else { TEXT_SECONDARY },
-            text_light: if hc { Color::WHITE } else { TEXT_LIGHT },
-            btn_padding: if lt { 12 } else { 8 },
+            bg_main: Palette::BG_PRIMARY(),
+            bg_card: Palette::BG_CARD(),
+            bg_row: Palette::BG_PRIMARY(),
+            bg_sidebar: Palette::BG_SIDEBAR(),
+            border: Palette::BORDER_SUBTLE(),
+            text_muted: Palette::TEXT_MUTED(),
+            text_dim: Palette::TEXT_DIM(),
+            text_secondary: Palette::TEXT_SECONDARY(),
+            text_light: Palette::TEXT_PRIMARY(),
+            btn_padding: if s.large_click_targets { 12 } else { 8 },
             show_status_labels: s.show_status_labels,
             date_format: s.date_format,
         }

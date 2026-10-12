@@ -12,7 +12,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
         text(format!("{} User Profile", theme::icons::PROFILE))
             .size(24)
-            .font(theme::FONT_BOLD)
+            .font(colony_ui::ui_font_bold())
             .color(Color::WHITE),
         text("Manage your account and data")
             .size(12)
@@ -40,7 +40,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         row![steam_note, gog_note, epic_note].spacing(12),
         row![xbox_note, psn_note].spacing(12),
         crate::keyring::is_unavailable().then(|| {
-            text("No system keyring available: platform tokens are stored unencrypted in the database.")
+            text("No system keyring available: platform tokens are stored unencrypted in Spotter's config folder.")
                 .size(12)
                 .color(theme::ACCENT_GOLD)
         }),
@@ -56,7 +56,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 // ── Profile overview card ──
 
 fn profile_overview_card<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Message> {
-    let accent = app.settings.accent_color.color();
+    let accent = colony_ui::theme::Palette::ACCENT();
 
     let total_playtime: u32 = app.games.iter().map(|g| g.playtime_minutes).sum();
     let completed = app
@@ -187,8 +187,7 @@ fn platform_note_card(name: &str, color: Color, vt: ViewTheme) -> Element<'stati
 // ── Data storage card ──
 
 fn data_storage_card<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Message> {
-    let accent = app.settings.accent_color.color();
-    let base_dir = crate::db::base_dir();
+    let accent = colony_ui::theme::Palette::ACCENT();
 
     let header_row = row![
         text("Data & Export").size(18).color(accent),
@@ -199,17 +198,19 @@ fn data_storage_card<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Message
     ]
     .align_y(iced::Alignment::Center);
 
-    let db_path = crate::db::db_path();
-    let covers_path = crate::db::covers_dir();
-    let exports_path = crate::db::exports_dir();
-
-    let paths_section = column![
-        data_row("Base", &base_dir.to_string_lossy(), vt),
-        data_row("Database", &db_path.to_string_lossy(), vt),
-        data_row("Covers", &covers_path.to_string_lossy(), vt),
-        data_row("Exports", &exports_path.to_string_lossy(), vt),
-    ]
-    .spacing(4);
+    // The paths in use, resolved at startup (see `paths::layout`).
+    let layout = crate::paths::layout();
+    let paths_section: Element<'a, Message> = match &layout {
+        Ok(layout) => column![
+            data_row("Preferences", &layout.preferences.to_string_lossy(), vt),
+            data_row("Database", &layout.db.to_string_lossy(), vt),
+            data_row("Exports", &layout.exports.to_string_lossy(), vt),
+            data_row("Covers", &layout.covers.to_string_lossy(), vt),
+        ]
+        .spacing(4)
+        .into(),
+        Err(e) => text(e.clone()).size(11).color(vt.text_dim).into(),
+    };
 
     // Export/import buttons
     let export_json_btn = button(
@@ -251,8 +252,8 @@ fn data_storage_card<'a>(app: &'a Spotter, vt: ViewTheme) -> Element<'a, Message
     .padding([8, 16])
     .style(theme::outline_btn_style(theme::SUCCESS, vt.bg_card));
 
-    let backup_path = exports_path.join("spotter_export.json");
-    let backup_note = if backup_path.exists() {
+    let backup_found = layout.is_ok_and(|l| l.exports.join("spotter_export.json").exists());
+    let backup_note = if backup_found {
         "Backup file found. Import will merge with your current library."
     } else {
         "No backup file found. Export first to create one."
@@ -295,7 +296,7 @@ fn stat_badge<'a>(label: &'a str, value: String, color: Color) -> Element<'a, Me
 
 fn data_row<'a>(label: &'a str, value: &str, vt: ViewTheme) -> Element<'a, Message> {
     row![
-        text(label).size(12).color(vt.text_muted).width(80),
+        text(label).size(12).color(vt.text_muted).width(100),
         text(value.to_string()).size(11).color(vt.text_dim),
     ]
     .spacing(8)

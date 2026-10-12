@@ -79,7 +79,8 @@ impl RateLimiter {
 /// the maximum size, the old file is rotated to `import.log.1` (keeping
 /// at most one backup).
 pub struct ImportLogger {
-    log_path: PathBuf,
+    /// `None` when Spotter has no logs folder: the logger then writes nothing.
+    log_path: Option<PathBuf>,
     backup_path: PathBuf,
     max_size: u64,
     file: Mutex<Option<std::fs::File>>,
@@ -91,12 +92,26 @@ impl ImportLogger {
         Self::with_max_size(dir, DEFAULT_MAX_LOG_SIZE)
     }
 
+    /// The logger every platform import writes to, in Spotter's logs folder
+    /// (see `paths::layout`).
+    pub fn for_imports() -> Self {
+        match crate::paths::layout() {
+            Ok(layout) => Self::new(&layout.logs),
+            Err(_) => Self {
+                log_path: None,
+                backup_path: PathBuf::new(),
+                max_size: DEFAULT_MAX_LOG_SIZE,
+                file: Mutex::new(None),
+            },
+        }
+    }
+
     /// Create a logger with a custom max file size for rotation.
     pub fn with_max_size(dir: &Path, max_size: u64) -> Self {
         let log_path = dir.join("import.log");
         let backup_path = dir.join("import.log.1");
         Self {
-            log_path,
+            log_path: Some(log_path),
             backup_path,
             max_size,
             file: Mutex::new(None),
@@ -105,6 +120,9 @@ impl ImportLogger {
 
     /// Log a message with a timestamp and module tag.
     pub fn log(&self, module: &str, message: &str) {
+        let Some(log_path) = &self.log_path else {
+            return;
+        };
         let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
         let line = format!("{} [{}] {}\n", timestamp, module, message);
 
@@ -117,11 +135,11 @@ impl ImportLogger {
         };
 
         // Rotate if needed — check size and rename, then drop the old handle
-        if let Ok(meta) = std::fs::metadata(&self.log_path) {
+        if let Ok(meta) = std::fs::metadata(log_path) {
             if meta.len() >= self.max_size {
                 // Drop the old file handle before renaming
                 *guard = None;
-                let _ = std::fs::rename(&self.log_path, &self.backup_path);
+                let _ = std::fs::rename(log_path, &self.backup_path);
                 eprintln!(
                     "[logger] Rotated import.log ({} bytes) → import.log.1",
                     meta.len()
@@ -136,7 +154,7 @@ impl ImportLogger {
                 match std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
-                    .open(&self.log_path)
+                    .open(log_path)
                 {
                     Ok(f) => {
                         *guard = Some(f);
@@ -155,15 +173,6 @@ impl ImportLogger {
         }
         let _ = file.flush();
     }
-}
-
-/// Return the path to the import log directory (same as app data dir).
-pub fn log_dir() -> PathBuf {
-    let dir = crate::db::base_dir().join("logs");
-    if let Err(e) = std::fs::create_dir_all(&dir) {
-        eprintln!("[logger] Failed to create log dir: {}", e);
-    }
-    dir
 }
 
 /// Create an HTTP agent suitable for API calls (15s read timeout).

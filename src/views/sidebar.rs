@@ -6,14 +6,14 @@ use crate::theme::{self, ViewTheme};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let vt = ViewTheme::from_settings(&app.settings);
-    let accent = app.settings.accent_color.color();
+    let accent = colony_ui::theme::Palette::ACCENT();
     let is_settings = app.screen == Screen::Settings;
     let large = app.settings.large_click_targets;
 
     let title_label = format!("{}  SPOTTER", theme::icons::GAMEPAD);
     let title_text = text(title_label)
         .size(22)
-        .font(theme::FONT_BOLD)
+        .font(colony_ui::ui_font_bold())
         .color(if is_settings { Color::WHITE } else { accent });
 
     let title = button(title_text)

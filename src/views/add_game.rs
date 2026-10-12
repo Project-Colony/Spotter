@@ -11,7 +11,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
         text(format!("{} Add Game", theme::icons::ADD))
             .size(24)
-            .font(theme::FONT_BOLD)
+            .font(colony_ui::ui_font_bold())
             .color(Color::WHITE),
         text("Manually add a game to your library")
             .size(12)

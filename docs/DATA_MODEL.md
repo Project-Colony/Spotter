@@ -103,7 +103,7 @@ UserProfile {
 
 ### Settings
 
-25 user-configurable preferences. See [CONFIGURATION.md](CONFIGURATION.md) for details.
+The user's preferences, saved to `preferences.json`, not to the database. See [CONFIGURATION.md](CONFIGURATION.md) for details.
 
 ## Database Schema
 
@@ -171,11 +171,11 @@ CREATE TABLE playtime_history (
 
 Single-row table (id = 1) storing `UserProfile` fields as individual columns.
 
-The credential columns (`steam_api_key`, `gog_token`, `gog_refresh_token`, `xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) stay empty: `keyring.rs` keeps those secrets in the OS keyring. They hold a value, unencrypted, only when no keyring is usable, and `keyring.rs` moves it to the keyring on a later start.
+The credential columns (`steam_api_key`, `gog_token`, `gog_refresh_token`, `xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) stay empty: `keyring.rs` keeps those secrets in the OS keyring, or, when no keyring is usable, in `credentials/tokens.json` in the config folder. A value here comes from Spotter 0.3 or earlier, or from a save that could not write that file, and `keyring.rs` moves it out on the next start.
 
 ### settings
 
-Single-row table (id = 1) storing JSON-serialized `Settings` struct.
+Single-row table (id = 1) holding the settings Spotter 0.3 and earlier saved, as JSON. A newer Spotter reads it once, to import it into `preferences.json`, and leaves it as it was.
 
 ```sql
 CREATE TABLE settings (
@@ -186,21 +186,35 @@ CREATE TABLE settings (
 
 ## Storage Locations
 
-| OS | Path |
-|----|------|
-| Linux | `~/.config/Colony/Spotter/` |
-| macOS | `~/Library/Application Support/Colony/Spotter/` |
-| Windows | `%LOCALAPPDATA%\Colony\Spotter\` |
+Under `Colony/Spotter/` in the platform's config, data and cache folders (`colony_ui::paths`):
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| Config | `~/.config/Colony/Spotter/` | `~/Library/Application Support/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` |
+| Data | `~/.local/share/Colony/Spotter/` | `~/Library/Application Support/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` |
+| Cache | `~/.cache/Colony/Spotter/` | `~/Library/Caches/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\cache\` |
 
 **Subdirectories:**
 
 ```
-Colony/Spotter/
-├── data/
+<config>/
+├── preferences/
+│   └── preferences.json        # Settings, with the shared Colony preferences
+└── credentials/
+    └── tokens.json             # Platform tokens, only when no OS keyring is usable
+
+<data>/
+├── library/
 │   └── spotter.db              # SQLite database
-├── cache/
-│   ├── covers/                 # Game cover art (JPEG)
-│   └── achievement_icons/      # Achievement icons (colored + grayscale)
-└── exports/
-    └── spotter_export.json     # JSON backup file
+├── exports/
+│   ├── spotter_export.json     # JSON backup file
+│   └── spotter_auto_backup.json
+└── logs/
+    └── import.log
+
+<cache>/
+├── covers/                     # Game cover art (JPEG)
+└── achievement_icons/          # Achievement icons (colored + grayscale)
 ```
+
+Spotter 0.3 and earlier kept `data/spotter.db`, `exports/`, `logs/` and `cache/` directly in the config folder. `paths.rs` copies the database, exports and log once (`.migrated-from-0.3` in the data folder marks it done), leaves the old files in place, and keeps using them if the copy fails.

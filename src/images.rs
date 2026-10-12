@@ -1,12 +1,13 @@
-use crate::db;
 use std::io::Read;
 use std::path::PathBuf;
 
 /// Maximum size for downloaded images (10 MB).
 const MAX_IMAGE_SIZE: u64 = 10_000_000;
 
-pub fn cover_path(game_title: &str) -> PathBuf {
-    db::covers_dir().join(cover_file_name(game_title))
+/// Where a game's cover is cached, or `None` without a cache folder.
+pub fn cover_path(game_title: &str) -> Option<PathBuf> {
+    let layout = crate::paths::layout().ok()?;
+    Some(layout.covers.join(cover_file_name(game_title)))
 }
 
 /// File name of a game's cached cover, derived from its title.
@@ -58,7 +59,7 @@ pub fn download_cover(url: &str, game_title: &str) -> Result<PathBuf, String> {
         return Err("No cover URL".into());
     }
 
-    let path = cover_path(game_title);
+    let path = cover_path(game_title).ok_or("No cache folder")?;
     if path.exists() {
         return Ok(path);
     }
@@ -112,20 +113,9 @@ fn is_valid_image(data: &[u8]) -> bool {
 
 // ───── Achievement icons ─────
 
-pub fn achievement_icons_dir() -> PathBuf {
-    let dir = db::cache_dir().join("achievement_icons");
-    if let Err(e) = std::fs::create_dir_all(&dir) {
-        eprintln!(
-            "[images] Failed to create achievement icons dir {:?}: {}",
-            dir, e
-        );
-    }
-    dir
-}
-
-/// Local path for a cached achievement icon.
+/// Local path for a cached achievement icon, or `None` without a cache folder.
 /// `gray` selects between the unlocked (colored) and locked (grayscale) variant.
-pub fn achievement_icon_path(appid: u32, api_name: &str, gray: bool) -> PathBuf {
+pub fn achievement_icon_path(appid: u32, api_name: &str, gray: bool) -> Option<PathBuf> {
     let safe_name: String = api_name
         .chars()
         .map(|c| {
@@ -138,7 +128,12 @@ pub fn achievement_icon_path(appid: u32, api_name: &str, gray: bool) -> PathBuf 
         .collect::<String>()
         .to_lowercase();
     let suffix = if gray { "_gray" } else { "" };
-    achievement_icons_dir().join(format!("{}_{}{}.jpg", appid, safe_name, suffix))
+    let layout = crate::paths::layout().ok()?;
+    Some(
+        layout
+            .achievement_icons
+            .join(format!("{}_{}{}.jpg", appid, safe_name, suffix)),
+    )
 }
 
 /// Download a single achievement icon if not already cached.
@@ -171,12 +166,15 @@ pub fn download_achievement_icons(appid: u32, achievements: &[crate::models::Ach
     for ach in achievements {
         // Download the appropriate icon: colored for unlocked, gray for locked
         // We download both variants so switching states later doesn't require re-download
-        let colored_path = achievement_icon_path(appid, &ach.api_name, false);
+        let Some(colored_path) = achievement_icon_path(appid, &ach.api_name, false) else {
+            break;
+        };
         if download_icon(&ach.icon_url, &colored_path).is_ok() {
             count += 1;
         }
-        let gray_path = achievement_icon_path(appid, &ach.api_name, true);
-        let _ = download_icon(&ach.icon_gray_url, &gray_path);
+        if let Some(gray_path) = achievement_icon_path(appid, &ach.api_name, true) {
+            let _ = download_icon(&ach.icon_gray_url, &gray_path);
+        }
     }
     count
 }
@@ -187,12 +185,15 @@ pub fn download_achievement_icons(appid: u32, achievements: &[crate::models::Ach
 pub fn download_achievement_icons_minimal(appid: u32, icons: &[(String, String, String)]) -> u32 {
     let mut count = 0u32;
     for (api_name, icon_url, icon_gray_url) in icons {
-        let colored_path = achievement_icon_path(appid, api_name, false);
+        let Some(colored_path) = achievement_icon_path(appid, api_name, false) else {
+            break;
+        };
         if download_icon(icon_url, &colored_path).is_ok() {
             count += 1;
         }
-        let gray_path = achievement_icon_path(appid, api_name, true);
-        let _ = download_icon(icon_gray_url, &gray_path);
+        if let Some(gray_path) = achievement_icon_path(appid, api_name, true) {
+            let _ = download_icon(icon_gray_url, &gray_path);
+        }
     }
     count
 }

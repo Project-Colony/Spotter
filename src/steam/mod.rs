@@ -585,7 +585,7 @@ pub fn full_import(
     steam_id: &str,
     existing: HashMap<u32, (bool, bool)>,
 ) -> Result<Vec<Game>, String> {
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("steam", "Starting Steam full import");
 
     eprintln!("[steam] Starting full import...");

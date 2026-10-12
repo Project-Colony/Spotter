@@ -15,7 +15,7 @@ pub fn full_import_online(
     account_id: &str,
     refresh_token: &str,
 ) -> Result<(Vec<Game>, Option<crate::epic::auth::EpicLoginResult>), String> {
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("epic", "Starting Epic Games online import");
 
     // Try with current token first; if it fails with 401, refresh and retry

@@ -1,3 +1,4 @@
+use colony_ui::preferences::StandardPreferences;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -296,149 +297,6 @@ impl Default for UserProfile {
 // ───── Settings ─────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ThemeMode {
-    Dark,
-    Darker,
-    Midnight,
-}
-
-impl fmt::Display for ThemeMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ThemeMode::Dark => write!(f, "Dark"),
-            ThemeMode::Darker => write!(f, "Darker"),
-            ThemeMode::Midnight => write!(f, "Midnight"),
-        }
-    }
-}
-
-impl ThemeMode {
-    pub const ALL: [ThemeMode; 3] = [ThemeMode::Dark, ThemeMode::Darker, ThemeMode::Midnight];
-
-    pub fn all() -> &'static [ThemeMode] {
-        &Self::ALL
-    }
-
-    /// Background color for main content area.
-    pub fn bg_main(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.1, 0.1, 0.14),
-            ThemeMode::Darker => iced::Color::from_rgb(0.06, 0.06, 0.09),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.02, 0.02, 0.05),
-        }
-    }
-
-    /// Background color for sidebar.
-    pub fn bg_sidebar(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.08, 0.08, 0.12),
-            ThemeMode::Darker => iced::Color::from_rgb(0.04, 0.04, 0.07),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.01, 0.01, 0.03),
-        }
-    }
-
-    /// Background color for cards/containers.
-    pub fn bg_card(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.12, 0.12, 0.16),
-            ThemeMode::Darker => iced::Color::from_rgb(0.08, 0.08, 0.11),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.04, 0.04, 0.07),
-        }
-    }
-
-    /// Slightly darker row background inside cards (e.g. settings rows).
-    pub fn bg_row(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.09, 0.09, 0.13),
-            ThemeMode::Darker => iced::Color::from_rgb(0.06, 0.06, 0.09),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.03, 0.03, 0.05),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AccentColor {
-    Blue,
-    Purple,
-    Green,
-    Gold,
-    Red,
-    Cyan,
-}
-
-impl fmt::Display for AccentColor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AccentColor::Blue => write!(f, "Blue"),
-            AccentColor::Purple => write!(f, "Purple"),
-            AccentColor::Green => write!(f, "Green"),
-            AccentColor::Gold => write!(f, "Gold"),
-            AccentColor::Red => write!(f, "Red"),
-            AccentColor::Cyan => write!(f, "Cyan"),
-        }
-    }
-}
-
-impl AccentColor {
-    pub const ALL: [AccentColor; 6] = [
-        AccentColor::Blue,
-        AccentColor::Purple,
-        AccentColor::Green,
-        AccentColor::Gold,
-        AccentColor::Red,
-        AccentColor::Cyan,
-    ];
-
-    pub fn all() -> &'static [AccentColor] {
-        &Self::ALL
-    }
-
-    pub fn color(&self) -> iced::Color {
-        match self {
-            AccentColor::Blue => iced::Color::from_rgb(0.6, 0.8, 1.0),
-            AccentColor::Purple => iced::Color::from_rgb(0.7, 0.5, 0.9),
-            AccentColor::Green => iced::Color::from_rgb(0.4, 0.9, 0.5),
-            AccentColor::Gold => iced::Color::from_rgb(1.0, 0.85, 0.3),
-            AccentColor::Red => iced::Color::from_rgb(1.0, 0.45, 0.45),
-            AccentColor::Cyan => iced::Color::from_rgb(0.3, 0.9, 0.9),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UiScale {
-    Small,
-    Normal,
-    Large,
-}
-
-impl fmt::Display for UiScale {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UiScale::Small => write!(f, "Small"),
-            UiScale::Normal => write!(f, "Normal"),
-            UiScale::Large => write!(f, "Large"),
-        }
-    }
-}
-
-impl UiScale {
-    pub const ALL: [UiScale; 3] = [UiScale::Small, UiScale::Normal, UiScale::Large];
-
-    pub fn all() -> &'static [UiScale] {
-        &Self::ALL
-    }
-
-    pub fn factor(&self) -> f32 {
-        match self {
-            UiScale::Small => 0.85,
-            UiScale::Normal => 1.0,
-            UiScale::Large => 1.2,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsSection {
     General,
     Appearances,
@@ -624,66 +482,51 @@ impl StartScreen {
     }
 }
 
-/// Current settings schema version.
-pub const SETTINGS_VERSION: u32 = 1;
+/// Current settings schema version. 2: the settings moved from the database
+/// to `preferences.json`, with the shared Colony preferences inside.
+pub const SETTINGS_VERSION: u32 = 2;
 
-fn default_settings_version() -> u32 {
-    SETTINGS_VERSION
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Everything the user chose. Saved to `preferences.json` (see
+/// `crate::preferences`); a field missing from the file takes its default.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     /// Schema version for forward-compatible deserialization.
-    #[serde(default = "default_settings_version")]
     pub version: u32,
+    /// Theme, accent, text sizes and the accessibility switches every Colony
+    /// program shares, stored under the same names as theirs.
+    #[serde(flatten)]
+    pub standard: StandardPreferences,
     // General
     pub default_status: GameStatus,
     pub default_platform: Platform,
     pub confirm_before_delete: bool,
     pub start_screen: StartScreen,
-    #[serde(default = "default_true")]
     pub notifications_enabled: bool,
-    #[serde(default)]
     pub toast_duration: ToastDuration,
-    #[serde(default)]
     pub date_format: DateFormat,
-    #[serde(default)]
     pub default_sort_order: SortOrder,
-    #[serde(default = "default_true")]
     pub remember_filters: bool,
-    #[serde(default)]
     pub last_filter_status: Option<GameStatus>,
-    #[serde(default)]
     pub last_filter_platform: Option<Platform>,
-    #[serde(default)]
     pub show_game_descriptions: bool,
-    #[serde(default)]
     pub achievements_display: AchievementsDisplay,
-    #[serde(default = "default_true")]
     pub download_covers_auto: bool,
-    #[serde(default)]
     pub favorites: Vec<i64>,
-    // Appearances
-    pub theme_mode: ThemeMode,
-    pub accent_color: AccentColor,
+    // Appearance
     pub compact_list: bool,
     pub show_covers_in_list: bool,
-    pub ui_scale: UiScale,
     pub sidebar_width: u16,
     // Accessibility
-    pub high_contrast: bool,
     pub show_status_labels: bool,
     pub large_click_targets: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            standard: StandardPreferences::default(),
             default_status: GameStatus::Unplayed,
             default_platform: Platform::Steam,
             confirm_before_delete: true,
@@ -699,13 +542,9 @@ impl Default for Settings {
             achievements_display: AchievementsDisplay::Full,
             download_covers_auto: true,
             favorites: Vec::new(),
-            theme_mode: ThemeMode::Dark,
-            accent_color: AccentColor::Blue,
             compact_list: false,
             show_covers_in_list: true,
-            ui_scale: UiScale::Normal,
             sidebar_width: 220,
-            high_contrast: false,
             show_status_labels: true,
             large_click_targets: false,
         }

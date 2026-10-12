@@ -25,28 +25,12 @@ impl Spotter {
                 self.settings.start_screen = screen;
                 return self.persist_settings();
             }
-            SettingsMessage::ThemeMode(mode) => {
-                self.settings.theme_mode = mode;
-                return self.persist_settings();
-            }
-            SettingsMessage::AccentColor(color) => {
-                self.settings.accent_color = color;
-                return self.persist_settings();
-            }
             SettingsMessage::CompactList => {
                 self.settings.compact_list = !self.settings.compact_list;
                 return self.persist_settings();
             }
             SettingsMessage::ShowCovers => {
                 self.settings.show_covers_in_list = !self.settings.show_covers_in_list;
-                return self.persist_settings();
-            }
-            SettingsMessage::UiScale(scale) => {
-                self.settings.ui_scale = scale;
-                return self.persist_settings();
-            }
-            SettingsMessage::HighContrast => {
-                self.settings.high_contrast = !self.settings.high_contrast;
                 return self.persist_settings();
             }
             SettingsMessage::ShowStatusLabels => {
