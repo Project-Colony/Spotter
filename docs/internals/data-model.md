@@ -36,8 +36,9 @@ Windows and macOS:
 └── achievement_icons/            <appid>_<name>.jpg and its grey variant
 ```
 
-The Profile page shows these paths with `colony_ui::paths::locate`, which does
-not create anything. Deleting the cache folder costs nothing but the downloads.
+`paths::layout()` in `src/paths.rs` resolves these paths and creates the
+folders once, at startup; the Profile page shows the paths it resolved.
+Deleting the cache folder costs nothing but the downloads.
 
 Spotter 0.3 and older kept everything under `~/.config/Colony/Spotter/`
 (`Application Support` on macOS, `AppData\Local` on Windows), with the database
@@ -45,7 +46,11 @@ in `data/` and the settings in the database. A newer version copies the
 database, exports and logs from there on its first start, imports the old
 settings row into `preferences.json`, writes a marker so the check runs once,
 and never deletes the old folder. If the copy fails, it keeps using the old
-location rather than start on an empty library.
+files where they are (`<config>/data/spotter.db`, `<config>/exports/`,
+`<config>/logs/`) rather than start on an empty library, and tries the copy
+again on the next start. On a system without a usable keyring, the old
+database left in `<config>/data/` can still hold the platform tokens
+unencrypted.
 
 ## Records
 
@@ -208,9 +213,11 @@ The Statistics screen charts the last 30 days of it.
 
 A single row (`id = 1`) with one column per `UserProfile` field. The seven
 secret columns (`steam_api_key`, `gog_token`, `gog_refresh_token`,
-`xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) are always
-empty: the secrets are in the keyring, or in `<config>/credentials/` without
-one.
+`xbox_api_key`, `psn_npsso`, `epic_token`, `epic_refresh_token`) are empty:
+the secrets are in the keyring, or in `<config>/credentials/tokens.json`
+without one. A secret stays in its column, unencrypted, only when neither the
+keyring nor that file could take it; `keyring.rs` moves it out on the next
+start.
 
 ### settings
 

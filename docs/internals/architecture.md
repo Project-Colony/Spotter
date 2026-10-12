@@ -133,7 +133,11 @@ and a test keeps the two locales' key sets identical.
 seven secret fields from the keyring; on save it writes them there and keeps
 their database columns empty. The first keyring failure in a session switches
 it to the fallback file `<config>/credentials/tokens.json` for the rest of the
-session, and the Profile page shows a warning. It only deletes keyring entries it has
+session, and the Profile page shows a warning. If that file cannot be written
+either, the secrets stay in their database columns, unencrypted, and the next
+start moves them out again. On load, secrets still in the database (Spotter
+0.3 and older) move to the keyring, or to the file without one, and secrets in
+the file move to the keyring once it works again. It only deletes keyring entries it has
 read or written this session, because a locked store can answer "no entry"
 for a secret it does hold.
 

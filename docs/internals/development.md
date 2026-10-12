@@ -94,9 +94,10 @@ reads run alongside a write. A new column goes into both `init_tables` and the
 the French table (a test fails otherwise). French uses the vous form and a
 space before `:`, `;`, `!` and `?`. Store and product names stay untranslated.
 
-**Files.** Paths come from `colony_ui::paths` (`config_dir`, `data_dir`,
-`cache_dir`), never from `dirs` directly; use `paths::locate` to show a path
-without creating it.
+**Files.** Spotter's own paths come from `paths::layout()` in `src/paths.rs`,
+built on `colony_ui::paths` (`config_dir`, `data_dir`, `cache_dir`); never
+build them from `dirs` directly. The layout is resolved, and its folders
+created, once at startup.
 
 **Errors.** Most functions still return `Result<T, String>`; the database layer
 uses `SpotterError` from `error.rs`, and new code should prefer it.

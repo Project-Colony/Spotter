@@ -85,6 +85,11 @@ settings inside the database. On the first start of a newer version, Spotter:
   and Midnight themes and the six old accents to the nearest shared theme and
   accent, and the old UI scale to the text size;
 - leaves the old folder untouched, so nothing is lost if something goes wrong.
-  Delete it yourself once your library is all there.
+  Delete it yourself once your library is all there. On a system without a
+  usable keyring, the old database in that folder still holds your platform
+  tokens unencrypted until you do.
+
+If the copy fails, Spotter keeps using the old files where they are and tries
+again on the next start.
 
 Covers and achievement icons are not copied: they download again.

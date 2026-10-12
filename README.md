@@ -187,7 +187,7 @@ use a feature that needs it.
 |---|---|---|
 | Your library | stored | `library/spotter.db` in Spotter's data folder: games, playtime history, achievements, your profile name and connected account ids |
 | Preferences | stored | `preferences/preferences.json` in Spotter's config folder |
-| Credentials | stored | your Steam API key, OpenXBL key, PlayStation NPSSO token and the GOG and Epic login tokens, in the operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux such as GNOME Keyring or KWallet). Without a usable keyring they are written unencrypted to `credentials/tokens.json` in the config folder (owner-only on Linux and macOS), and the Profile page says so |
+| Credentials | stored | your Steam API key, OpenXBL key, PlayStation NPSSO token and the GOG and Epic login tokens, in the operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux such as GNOME Keyring or KWallet). Without a usable keyring they are written unencrypted to `credentials/tokens.json` in the config folder (owner-only on Linux and macOS), or, if that file cannot be written, kept unencrypted in the library database until a later start can move them; the Profile page says when the keyring is not used |
 | Exports and backups | stored | `exports/` in the data folder: `spotter_export.json` and `spotter_export.csv` when you export, `spotter_auto_backup.json` after every import |
 | Import log | stored | `logs/import.log` in the data folder (rotated to `import.log.1` at 5 MB): import steps, game counts and errors, plus your Xbox user id |
 | Covers and achievement icons | stored | `covers/` and `achievement_icons/` in Spotter's cache folder; safe to delete, they are downloaded again |
@@ -203,6 +203,10 @@ use a feature that needs it.
 The config, data and cache folders are `Colony/Spotter/` under your system's
 config, data and cache directories; the full table per operating system is in
 [docs/internals/data-model.md](docs/internals/data-model.md#where-the-data-lives).
+If copying the files of Spotter 0.3 or older fails, Spotter keeps using the old
+files in the config folder (`data/spotter.db`, `exports/`, `logs/`). The 0.3
+folder is never deleted for you: on a system without a usable keyring, its old
+database still holds your tokens unencrypted until you delete it.
 
 Spotter connects to no server except the ones in this table, and only for the
 action named there. Links such as a game's store page open in your browser;
