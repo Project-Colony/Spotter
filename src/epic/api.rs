@@ -86,7 +86,7 @@ pub(super) fn fetch_entitlements(
     Ok(all_entitlements)
 }
 
-/// Fetch launcher assets — the primary endpoint the EGS Launcher uses.
+/// Fetch launcher assets: the primary endpoint the EGS Launcher uses.
 /// This returns all installable games for the user on a given platform.
 /// Free claimed games typically appear here even if absent from the library service.
 /// Non-fatal: returns empty vec on error rather than failing the whole import.

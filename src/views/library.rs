@@ -1,155 +1,86 @@
+use colony_ui::theme::Palette;
+use colony_ui::{sz, ui_font};
 use iced::widget::{
-    button, column, container, progress_bar, row, rule, scrollable, space, text, text_input,
+    button, column, container, progress_bar, row, rule, scrollable, space, text_input,
 };
-use iced::{Background, Border, Color, Element, Length, Theme};
+use iced::{Background, Border, Element, Length, Theme};
 
 use std::collections::HashSet;
 
 use crate::app::{Message, Screen, Spotter};
-use crate::models::{GameStatus, Platform, SortOrder};
-use crate::theme::{self, ViewTheme};
+use crate::i18n::{percent, t, tf, tn};
+use crate::models::{GameStatus, Platform, Preferences, SortOrder};
+use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
-    let vt = ViewTheme::from_settings(&app.settings);
-
     let header = column![
-        text(format!("{} Game Library", theme::icons::LIBRARY))
-            .size(24)
-            .font(theme::FONT_BOLD)
-            .color(Color::WHITE),
-        text("Track your games across all platforms")
-            .size(12)
-            .color(vt.text_muted),
+        ui_text(
+            format!("{} {}", theme::icons::LIBRARY, t("library_title")),
+            24
+        )
+        .font(colony_ui::ui_font_bold())
+        .color(Palette::TEXT_PRIMARY()),
+        ui_text(t("library_subtitle"), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
-    let search = text_input(
-        "Search games by title, genre, or tags...",
-        &app.search_query,
-    )
-    .id(iced::widget::Id::new("library_search"))
-    .on_input(Message::SearchChanged)
-    .padding(10)
-    .size(14);
+    let search = text_input(t("library_search"), &app.search_query)
+        .id(iced::widget::Id::new("library_search"))
+        .on_input(Message::SearchChanged)
+        .padding(10)
+        .size(sz(14))
+        .font(ui_font());
 
-    let bp = vt.btn_padding;
+    let bp = app.preferences.button_padding();
 
     // Status filter chips (with icons)
-    let s_playing = format!("{} Playing", GameStatus::Playing.icon());
-    let s_completed = format!("{} Completed", GameStatus::Completed.icon());
-    let s_unplayed = format!("{} Unplayed", GameStatus::Unplayed.icon());
-    let s_dropped = format!("{} Dropped", GameStatus::Dropped.icon());
-    let s_wishlist = format!("{} Wishlist", GameStatus::Wishlist.icon());
-
-    let status_buttons = row![
-        filter_chip("All", app.filter_status.is_none(), None, bp),
+    let status_buttons = row(std::iter::once(filter_chip(
+        t("filter_all_statuses"),
+        app.filter_status.is_none(),
+        None,
+        bp,
+    ))
+    .chain(GameStatus::ALL.map(|status| {
         filter_chip(
-            &s_playing,
-            app.filter_status == Some(GameStatus::Playing),
-            Some(GameStatus::Playing),
-            bp
-        ),
-        filter_chip(
-            &s_completed,
-            app.filter_status == Some(GameStatus::Completed),
-            Some(GameStatus::Completed),
-            bp
-        ),
-        filter_chip(
-            &s_unplayed,
-            app.filter_status == Some(GameStatus::Unplayed),
-            Some(GameStatus::Unplayed),
-            bp
-        ),
-        filter_chip(
-            &s_dropped,
-            app.filter_status == Some(GameStatus::Dropped),
-            Some(GameStatus::Dropped),
-            bp
-        ),
-        filter_chip(
-            &s_wishlist,
-            app.filter_status == Some(GameStatus::Wishlist),
-            Some(GameStatus::Wishlist),
-            bp
-        ),
-    ]
+            &format!("{} {}", status.icon(), status.label()),
+            app.filter_status == Some(status),
+            Some(status),
+            bp,
+        )
+    })))
     .spacing(6);
 
     // Platform filter chips (with icons)
-    let p_steam = format!("{} Steam", Platform::Steam.icon());
-    let p_gog = format!("{} GOG", Platform::Gog.icon());
-    let p_epic = format!("{} Epic", Platform::Epic.icon());
-    let p_ps = format!("{} PlayStation", Platform::PlayStation.icon());
-    let p_xbox = format!("{} Xbox", Platform::Xbox.icon());
-    let p_nin = format!("{} Nintendo", Platform::Nintendo.icon());
-
-    let platform_buttons = row![
-        platform_chip("All", app.filter_platform.is_none(), None, bp),
+    let platform_buttons = row(std::iter::once(platform_chip(
+        t("filter_all_platforms"),
+        app.filter_platform.is_none(),
+        None,
+        bp,
+    ))
+    .chain(Platform::ALL.map(|platform| {
         platform_chip(
-            &p_steam,
-            app.filter_platform == Some(Platform::Steam),
-            Some(Platform::Steam),
-            bp
-        ),
-        platform_chip(
-            &p_gog,
-            app.filter_platform == Some(Platform::Gog),
-            Some(Platform::Gog),
-            bp
-        ),
-        platform_chip(
-            &p_epic,
-            app.filter_platform == Some(Platform::Epic),
-            Some(Platform::Epic),
-            bp
-        ),
-        platform_chip(
-            &p_ps,
-            app.filter_platform == Some(Platform::PlayStation),
-            Some(Platform::PlayStation),
-            bp
-        ),
-        platform_chip(
-            &p_xbox,
-            app.filter_platform == Some(Platform::Xbox),
-            Some(Platform::Xbox),
-            bp
-        ),
-        platform_chip(
-            &p_nin,
-            app.filter_platform == Some(Platform::Nintendo),
-            Some(Platform::Nintendo),
-            bp
-        ),
-    ]
+            &format!("{} {}", platform.icon(), platform),
+            app.filter_platform == Some(platform),
+            Some(platform),
+            bp,
+        )
+    })))
     .spacing(6);
 
     // Sort buttons
-    let sort_row = row![
-        text("Sort:").size(12).color(vt.text_muted),
-        sort_chip("A-Z", SortOrder::TitleAsc, app.sort_order, vt.bg_card),
-        sort_chip("Z-A", SortOrder::TitleDesc, app.sort_order, vt.bg_card),
-        sort_chip(
-            "Playtime",
-            SortOrder::PlaytimeDesc,
-            app.sort_order,
-            vt.bg_card
-        ),
-        sort_chip("Rating", SortOrder::RatingDesc, app.sort_order, vt.bg_card),
-        sort_chip(
-            "Recent",
-            SortOrder::LastPlayedDesc,
-            app.sort_order,
-            vt.bg_card
-        ),
-        sort_chip(
-            &format!("{} Favs", theme::icons::STAR),
-            SortOrder::FavoritesFirst,
-            app.sort_order,
-            vt.bg_card
-        ),
-    ]
+    let sort_row = row(std::iter::once::<Element<'_, Message>>(
+        ui_text(t("library_sort"), 12)
+            .color(Palette::TEXT_MUTED())
+            .into(),
+    )
+    .chain(SortOrder::ALL.map(|order| {
+        let label = if order == SortOrder::FavoritesFirst {
+            format!("{} {}", theme::icons::STAR, order.label())
+        } else {
+            order.label().to_owned()
+        };
+        sort_chip(&label, order, app.sort_order)
+    })))
     .spacing(6)
     .align_y(iced::Alignment::Center);
 
@@ -160,32 +91,20 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         .collect();
 
     // Bulk mode toggle + count
-    let bulk_toggle = button(
-        text(if app.bulk_mode {
-            "Exit Select"
+    let bulk_toggle = button(ui_text(
+        t(if app.bulk_mode {
+            "library_select_done"
         } else {
-            "Select"
-        })
-        .size(12)
-        .color(if app.bulk_mode {
-            theme::ACCENT_GOLD
-        } else {
-            theme::TEXT_MUTED
+            "library_select"
         }),
-    )
+        12,
+    ))
     .on_press(Message::ToggleBulkMode)
     .padding([4, 10])
-    .style(theme::chip_style(
-        app.bulk_mode,
-        theme::TEXT_MUTED,
-        theme::ACCENT_GOLD,
-        8.0,
-    ));
+    .style(theme::chip_style(app.bulk_mode, Palette::WARNING(), 8.0));
 
     let count_text = row![
-        text(format!("{} game(s)", filtered.len()))
-            .size(12)
-            .color(vt.text_muted),
+        ui_text(tn("games_count", filtered.len(), &[]), 12).color(Palette::TEXT_MUTED()),
         space::horizontal(),
         bulk_toggle,
     ]
@@ -195,145 +114,106 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Bulk action bar (shown when items are selected)
     let bulk_bar: Element<Message> = if app.bulk_mode && !app.bulk_selected.is_empty() {
         let sel_count = app.bulk_selected.len();
-        let accent = app.settings.accent_color.color();
-        let bar_bg = vt.bg_card;
-        let bar_border = vt.border;
+        let set_status = |status: GameStatus| {
+            bar_button(
+                format!("{} {}", status.icon(), status.label()),
+                status.color(),
+                Message::BulkSetStatus(status),
+            )
+        };
         container(
             row![
-                text(format!("{} selected", sel_count))
-                    .size(13)
-                    .color(accent),
-                button(text("All").size(11).color(theme::ACCENT_BLUE))
-                    .on_press(Message::BulkSelectAll)
-                    .padding([4, 10])
-                    .style(theme::outline_btn_style(theme::ACCENT_BLUE, bar_bg)),
-                button(text("None").size(11).color(theme::TEXT_MUTED))
-                    .on_press(Message::BulkDeselectAll)
-                    .padding([4, 10])
-                    .style(theme::outline_btn_style(theme::TEXT_MUTED, bar_bg)),
+                ui_text(tn("library_selected", sel_count, &[]), 13).color(Palette::ACCENT()),
+                bar_button(
+                    t("library_select_all").to_owned(),
+                    Palette::ACCENT(),
+                    Message::BulkSelectAll
+                ),
+                bar_button(
+                    t("library_select_none").to_owned(),
+                    Palette::TEXT_MUTED(),
+                    Message::BulkDeselectAll
+                ),
                 space::horizontal(),
-                button(
-                    text(format!("{} Playing", GameStatus::Playing.icon()))
-                        .size(11)
-                        .color(GameStatus::Playing.color()),
-                )
-                .on_press(Message::BulkSetStatus(GameStatus::Playing))
-                .padding([4, 10])
-                .style(theme::outline_btn_style(
-                    GameStatus::Playing.color(),
-                    bar_bg
-                )),
-                button(
-                    text(format!("{} Completed", GameStatus::Completed.icon()))
-                        .size(11)
-                        .color(GameStatus::Completed.color()),
-                )
-                .on_press(Message::BulkSetStatus(GameStatus::Completed))
-                .padding([4, 10])
-                .style(theme::outline_btn_style(
-                    GameStatus::Completed.color(),
-                    bar_bg,
-                )),
-                button(
-                    text(format!("{} Dropped", GameStatus::Dropped.icon()))
-                        .size(11)
-                        .color(GameStatus::Dropped.color()),
-                )
-                .on_press(Message::BulkSetStatus(GameStatus::Dropped))
-                .padding([4, 10])
-                .style(theme::outline_btn_style(
-                    GameStatus::Dropped.color(),
-                    bar_bg
-                )),
-                button(
-                    text("Delete")
-                        .size(11)
-                        .color(Color::from_rgb(1.0, 0.4, 0.4))
-                )
-                .on_press(Message::BulkDelete)
-                .padding([4, 10])
-                .style(theme::outline_btn_style(
-                    Color::from_rgb(1.0, 0.4, 0.4),
-                    bar_bg,
-                )),
+                set_status(GameStatus::Playing),
+                set_status(GameStatus::Completed),
+                set_status(GameStatus::Dropped),
+                bar_button(
+                    t("action_delete").to_owned(),
+                    Palette::ERROR(),
+                    Message::BulkDelete
+                ),
             ]
             .spacing(6)
             .align_y(iced::Alignment::Center),
         )
         .padding([8, 12])
         .width(Length::Fill)
-        .style(theme::card_style(bar_bg, bar_border, 8.0))
+        .style(theme::card_style(
+            Palette::BG_CARD(),
+            Palette::BORDER_SUBTLE(),
+            8.0,
+        ))
         .into()
     } else {
         column![].into()
     };
 
-    let show_covers = app.settings.show_covers_in_list;
-    let compact = app.settings.compact_list;
-    let favorites = &app.settings.favorites;
+    let prefs = &app.preferences;
     let bulk_mode = app.bulk_mode;
 
     let game_list: Element<Message> = if filtered.is_empty() {
         // Build a helpful empty-state showing which filters are active
-        let mut empty_col = column![text("No games match your filters")
-            .size(18)
-            .color(vt.text_muted),]
-        .spacing(8)
-        .align_x(iced::Alignment::Center);
+        let mut empty_col = column![ui_text(t("library_empty"), 18).color(Palette::TEXT_MUTED()),]
+            .spacing(8)
+            .align_x(iced::Alignment::Center);
 
         // Describe active filters
         let mut active_parts: Vec<String> = Vec::new();
         if !app.search_query.is_empty() {
-            active_parts.push(format!("search \"{}\"", app.search_query));
+            active_parts.push(tf("library_filter_search", &[("query", &app.search_query)]));
         }
-        if let Some(ref s) = app.filter_status {
-            active_parts.push(format!("status = {}", s));
+        if let Some(status) = app.filter_status {
+            active_parts.push(tf("library_filter_status", &[("status", &status.label())]));
         }
-        if let Some(ref p) = app.filter_platform {
-            active_parts.push(format!("platform = {}", p));
+        if let Some(platform) = app.filter_platform {
+            active_parts.push(tf("library_filter_platform", &[("platform", &platform)]));
         }
         if !active_parts.is_empty() {
             empty_col = empty_col.push(
-                text(format!("Active filters: {}", active_parts.join(", ")))
-                    .size(13)
-                    .color(vt.text_dim),
+                ui_text(
+                    tf(
+                        "library_active_filters",
+                        &[("filters", &active_parts.join(", "))],
+                    ),
+                    13,
+                )
+                .color(Palette::TEXT_DIM()),
             );
         }
 
         // Suggest clearing filters
         let mut hint_row = row![].spacing(6).align_y(iced::Alignment::Center);
-        hint_row = hint_row.push(
-            text("Try broadening your search or")
-                .size(12)
-                .color(vt.text_dim),
-        );
+        hint_row = hint_row.push(ui_text(t("library_try_broader"), 12).color(Palette::TEXT_DIM()));
         if app.filter_status.is_some() {
             hint_row = hint_row.push(
-                button(
-                    text("clear status filter")
-                        .size(12)
-                        .color(theme::ACCENT_BLUE),
-                )
-                .on_press(Message::FilterStatus(None))
-                .padding([4, 8])
-                .style(theme::transparent_btn_style()),
+                button(ui_text(t("library_clear_status"), 12).color(Palette::ACCENT()))
+                    .on_press(Message::FilterStatus(None))
+                    .padding([4, 8])
+                    .style(theme::transparent_btn_style()),
             );
         }
         if app.filter_platform.is_some() {
             hint_row = hint_row.push(
-                button(
-                    text("clear platform filter")
-                        .size(12)
-                        .color(theme::ACCENT_BLUE),
-                )
-                .on_press(Message::FilterPlatform(None))
-                .padding([4, 8])
-                .style(theme::transparent_btn_style()),
+                button(ui_text(t("library_clear_platform"), 12).color(Palette::ACCENT()))
+                    .on_press(Message::FilterPlatform(None))
+                    .padding([4, 8])
+                    .style(theme::transparent_btn_style()),
             );
         }
         if !app.search_query.is_empty() {
             hint_row = hint_row.push(
-                button(text("clear search").size(12).color(theme::ACCENT_BLUE))
+                button(ui_text(t("library_clear_search"), 12).color(Palette::ACCENT()))
                     .on_press(Message::SearchChanged(String::new()))
                     .padding([4, 8])
                     .style(theme::transparent_btn_style()),
@@ -347,10 +227,10 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             + (app.filter_platform.is_some() as u8);
         if active_count > 1 {
             empty_col = empty_col.push(
-                button(text("Clear all filters").size(12).color(theme::ACCENT_BLUE))
+                button(ui_text(t("library_clear_all"), 12))
                     .on_press(Message::ClearAllFilters)
                     .padding([6, 14])
-                    .style(theme::outline_btn_style(theme::ACCENT_BLUE, vt.bg_card)),
+                    .style(theme::outline_btn_style(Palette::ACCENT())),
             );
         }
 
@@ -359,7 +239,6 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             .center_x(Length::Fill)
             .into()
     } else {
-        let show_descriptions = app.settings.show_game_descriptions;
         let bulk_selected = &app.bulk_selected;
         let cover_cache = &app.cover_cache;
         let total_filtered = filtered.len();
@@ -370,11 +249,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             .map(|(_index, game)| {
                 game_card(
                     game,
-                    show_covers,
-                    compact,
-                    show_descriptions,
-                    vt,
-                    favorites.contains(&game.id.unwrap_or(-1)),
+                    prefs,
                     bulk_mode,
                     game.id.is_some_and(|id| bulk_selected.contains(&id)),
                     cover_cache,
@@ -382,7 +257,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             })
             .collect();
 
-        let spacing = if compact { 4 } else { 8 };
+        let spacing = if prefs.compact_list { 4 } else { 8 };
         let mut game_column = column![].spacing(spacing).width(Length::Fill);
         for card in cards {
             game_column = game_column.push(card);
@@ -391,14 +266,13 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             let remaining = total_filtered - limit;
             game_column = game_column.push(
                 container(
-                    button(
-                        text(format!("Show more ({} remaining)", remaining))
-                            .size(13)
-                            .color(theme::ACCENT_BLUE),
-                    )
+                    button(ui_text(
+                        tf("library_show_more", &[("count", &remaining)]),
+                        13,
+                    ))
                     .on_press(Message::ShowMoreCards)
                     .padding([8, 20])
-                    .style(theme::outline_btn_style(theme::ACCENT_BLUE, vt.bg_card)),
+                    .style(theme::outline_btn_style(Palette::ACCENT())),
                 )
                 .padding([12, 0])
                 .center_x(Length::Fill),
@@ -412,32 +286,30 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 
     // Onboarding banner for first-time users
     let onboarding: Element<Message> = if app.first_launch {
-        let accent = app.settings.accent_color.color();
-        let import_btn = button(text("Import Games").size(12).color(theme::BG_DARKER))
+        let accent = Palette::ACCENT();
+        let import_btn = button(ui_text(t("import_title"), 12))
             .on_press(Message::NavigateTo(crate::app::Screen::Import))
             .padding([6, 16])
-            .style(theme::primary_btn_style(theme::SUCCESS));
-        let add_btn = button(text("Add Manually").size(12).color(accent))
+            .style(theme::primary_btn_style(Palette::BTN_SUCCESS()));
+        let add_btn = button(ui_text(t("onboarding_add"), 12))
             .on_press(Message::NavigateTo(crate::app::Screen::AddGame))
             .padding([6, 16])
-            .style(theme::outline_btn_style(accent, vt.bg_card));
-        let dismiss_btn = button(text("Dismiss").size(12).color(theme::TEXT_MUTED))
+            .style(theme::outline_btn_style(accent));
+        let dismiss_btn = button(ui_text(t("action_dismiss"), 12).color(Palette::TEXT_MUTED()))
             .on_press(Message::DismissOnboarding)
             .padding([6, 16])
             .style(theme::transparent_btn_style());
         let onboard_card = container(
             column![
-                text("Welcome to Spotter!").size(18).color(accent),
-                text("Import from Steam, GOG, Epic, Xbox, PlayStation — or add games manually.")
-                    .size(13)
-                    .color(vt.text_secondary),
+                ui_text(t("onboarding_title"), 18).color(accent),
+                ui_text(t("onboarding_text"), 13).color(Palette::TEXT_SECONDARY()),
                 row![import_btn, add_btn, dismiss_btn].spacing(8),
             ]
             .spacing(8),
         )
         .padding([14, 18])
         .width(Length::Fill)
-        .style(theme::accent_card_style(vt.bg_card, accent));
+        .style(theme::accent_card_style(accent));
         onboard_card.into()
     } else {
         column![].into()
@@ -471,45 +343,11 @@ fn filter_chip(
     status: Option<GameStatus>,
     pad: u16,
 ) -> Element<'static, Message> {
-    let label = label.to_string();
-    let color = if is_active {
-        theme::ACCENT_BLUE
-    } else {
-        theme::TEXT_MUTED
-    };
-
-    button(text(label).size(12).color(color))
+    let color = status.map_or_else(Palette::ACCENT, |s| s.color());
+    button(ui_text(label.to_string(), 12))
         .on_press(Message::FilterStatus(status))
         .padding([pad, 12])
-        .style(move |_theme: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let base_bg = if is_active {
-                Color::from_rgb(0.15, 0.2, 0.3)
-            } else {
-                theme::BG_BUTTON
-            };
-            let bg = if hover {
-                crate::theme::lighten(base_bg, 0.04)
-            } else {
-                base_bg
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 12.0.into(),
-                    color: if is_active {
-                        Color::from_rgb(0.3, 0.4, 0.6)
-                    } else if hover {
-                        Color::from_rgb(0.2, 0.2, 0.28)
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(theme::chip_style(is_active, color, 12.0))
         .into()
 }
 
@@ -519,105 +357,38 @@ fn platform_chip(
     platform: Option<Platform>,
     pad: u16,
 ) -> Element<'static, Message> {
-    let label = label.to_string();
-    let color = if is_active {
-        Color::from_rgb(0.8, 0.6, 1.0)
-    } else {
-        theme::TEXT_MUTED
-    };
-
-    button(text(label).size(11).color(color))
+    let color = platform.map_or_else(Palette::ACCENT, |p| p.color());
+    button(ui_text(label.to_string(), 11))
         .on_press(Message::FilterPlatform(platform))
         .padding([pad.saturating_sub(2), 10])
-        .style(move |_theme: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let base_bg = if is_active {
-                Color::from_rgb(0.18, 0.12, 0.28)
-            } else {
-                theme::BG_BUTTON
-            };
-            let bg = if hover {
-                crate::theme::lighten(base_bg, 0.04)
-            } else {
-                base_bg
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 10.0.into(),
-                    color: if is_active {
-                        Color::from_rgb(0.4, 0.3, 0.6)
-                    } else if hover {
-                        Color::from_rgb(0.2, 0.2, 0.28)
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(theme::chip_style(is_active, color, 10.0))
         .into()
 }
 
-fn sort_chip(
-    label: &str,
-    target: SortOrder,
-    current: SortOrder,
-    bg_card: Color,
-) -> Element<'static, Message> {
-    let label = label.to_string();
-    let is_active = current == target;
-    let color = if is_active {
-        theme::ACCENT_GOLD
-    } else {
-        theme::TEXT_DIM
-    };
-
-    button(text(label).size(11).color(color))
+fn sort_chip(label: &str, target: SortOrder, current: SortOrder) -> Element<'static, Message> {
+    button(ui_text(label.to_string(), 11))
         .on_press(Message::SetSortOrder(target))
         .padding([4, 8])
-        .style(move |_theme: &Theme, status| {
-            let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
-            let base_bg = if is_active {
-                Color::from_rgb(0.18, 0.16, 0.08)
-            } else {
-                bg_card
-            };
-            let bg = if hover {
-                crate::theme::lighten(base_bg, 0.04)
-            } else {
-                base_bg
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: color,
-                border: Border {
-                    radius: 6.0.into(),
-                    color: if is_active {
-                        Color::from_rgb(0.5, 0.42, 0.15)
-                    } else if hover {
-                        Color::from_rgb(0.2, 0.2, 0.28)
-                    } else {
-                        Color::TRANSPARENT
-                    },
-                    width: 1.0,
-                },
-                ..button::Style::default()
-            }
-        })
+        .style(theme::chip_style(
+            current == target,
+            Palette::WARNING(),
+            6.0,
+        ))
         .into()
 }
 
-#[allow(clippy::too_many_arguments)]
+/// A small outlined button of the bulk action bar.
+fn bar_button(label: String, color: iced::Color, msg: Message) -> Element<'static, Message> {
+    button(ui_text(label, 11))
+        .on_press(msg)
+        .padding([4, 10])
+        .style(theme::outline_btn_style(color))
+        .into()
+}
+
 fn game_card<'a>(
     game: &'a crate::models::Game,
-    show_covers: bool,
-    compact: bool,
-    show_descriptions: bool,
-    vt: ViewTheme,
-    is_favorite: bool,
+    prefs: &Preferences,
     bulk_mode: bool,
     is_selected: bool,
     cover_cache: &HashSet<String>,
@@ -629,14 +400,14 @@ fn game_card<'a>(
         Some(id) => id,
         None => return iced::widget::text("...").into(),
     };
-
-    let bg_card = vt.bg_card;
-    let border_color = vt.border;
+    let is_favorite = prefs.favorites.contains(&game_id);
+    let compact = prefs.compact_list;
 
     // Cover image thumbnail (respects show_covers_in_list setting)
-    let cover_element: Option<Element<'a, Message>> = if show_covers {
-        let cover_path = crate::images::cover_path(&game.title);
-        if cover_cache.contains(&game.title) {
+    let cover_element: Option<Element<'a, Message>> = if prefs.show_covers_in_list {
+        let cover_path =
+            crate::images::cover_path(&game.title).filter(|_| cover_cache.contains(&game.title));
+        if let Some(cover_path) = cover_path {
             Some(
                 container(
                     iced::widget::image(iced::widget::image::Handle::from_path(&cover_path))
@@ -649,23 +420,18 @@ fn game_card<'a>(
         } else {
             Some(
                 container(
-                    text(game.title.chars().next().unwrap_or('?').to_string())
-                        .size(22)
-                        .color(theme::TEXT_HEADING),
+                    ui_text(game.title.chars().next().unwrap_or('?').to_string(), 22)
+                        .color(Palette::TEXT_DIMMER()),
                 )
                 .width(120)
                 .height(57)
                 .center_x(120)
                 .center_y(57)
-                .style(move |_: &Theme| container::Style {
-                    background: Some(Background::Color(bg_card)),
-                    border: Border {
-                        radius: 4.0.into(),
-                        color: border_color,
-                        width: 1.0,
-                    },
-                    ..container::Style::default()
-                })
+                .style(theme::card_style(
+                    Palette::BG_PRIMARY(),
+                    Palette::BORDER_SUBTLE(),
+                    4.0,
+                ))
                 .into(),
             )
         }
@@ -678,113 +444,122 @@ fn game_card<'a>(
     if bulk_mode {
         let check_label = if is_selected { "[x]" } else { "[ ]" };
         let check_color = if is_selected {
-            theme::ACCENT_BLUE
+            Palette::ACCENT()
         } else {
-            theme::TEXT_DIM
+            Palette::TEXT_DIM()
         };
-        title_items.push(text(check_label).size(14).color(check_color).into());
+        title_items.push(ui_text(check_label, 14).color(check_color).into());
     }
 
     // Favorite star
     if is_favorite {
         title_items.push(
-            text(theme::icons::STAR)
-                .size(14)
-                .color(theme::ACCENT_GOLD)
+            ui_text(theme::icons::STAR, 14)
+                .color(Palette::WARNING())
                 .into(),
         );
     }
 
     // Status label (respects show_status_labels setting)
-    if vt.show_status_labels {
+    if prefs.show_status_labels {
         title_items.push(
-            text(format!("[{}]", game.status))
-                .size(11)
+            ui_text(format!("[{}]", game.status.label()), 11)
                 .color(status_color)
                 .into(),
         );
     } else {
         // Show a small color dot instead
         title_items.push(
-            container(text("").size(1))
+            container(space())
                 .width(8)
                 .height(8)
-                .style(move |_: &Theme| container::Style {
-                    background: Some(Background::Color(status_color)),
-                    border: Border {
-                        radius: 4.0.into(),
-                        ..Border::default()
-                    },
-                    ..container::Style::default()
-                })
+                .style(theme::dot_style(status_color, 8.0))
                 .into(),
         );
     }
-    title_items.push(text(&game.title).size(16).color(Color::WHITE).into());
+    title_items.push(
+        ui_text(&game.title, 16)
+            .color(Palette::TEXT_PRIMARY())
+            .into(),
+    );
     title_items.push(space::horizontal().into());
     title_items.push(
-        text(format!("{} {}", game.platform.icon(), game.platform))
-            .size(12)
+        ui_text(format!("{} {}", game.platform.icon(), game.platform), 12)
             .color(platform_color)
             .into(),
     );
 
     let title_row = row(title_items).spacing(8).align_y(iced::Alignment::Center);
 
-    let mut info_items = row![text(&game.genre).size(12).color(vt.text_muted),].spacing(0);
+    let mut info_items = row![ui_text(&game.genre, 12).color(Palette::TEXT_MUTED()),].spacing(0);
 
     if !game.release_date.is_empty() {
         info_items = info_items.push(
-            text(format!(
-                " · {}",
-                vt.date_format.format_date(&game.release_date)
-            ))
-            .size(12)
-            .color(vt.text_dim),
+            ui_text(
+                format!(" · {}", prefs.date_format.format_date(&game.release_date)),
+                12,
+            )
+            .color(Palette::TEXT_DIM()),
         );
     }
 
     if let Some(pct) = game.review_percent {
         let review_color = if pct >= 70 {
-            theme::SUCCESS
+            Palette::SUCCESS()
         } else if pct >= 40 {
-            Color::from_rgb(0.9, 0.7, 0.2)
+            Palette::WARNING()
         } else {
-            Color::from_rgb(0.9, 0.3, 0.3)
+            Palette::ERROR()
         };
         info_items = info_items.push(
-            text(format!(" · {}% positive", pct))
-                .size(12)
-                .color(review_color),
+            ui_text(
+                format!(
+                    " · {}",
+                    tf("library_review", &[("percent", &percent(pct as f32, 0))])
+                ),
+                12,
+            )
+            .color(review_color),
         );
     }
 
     info_items = info_items.push(
-        text(format!(
-            " · Last: {}",
-            vt.date_format.format_date(&game.last_played)
-        ))
-        .size(12)
-        .color(vt.text_dim),
+        ui_text(
+            format!(
+                " · {}",
+                tf(
+                    "library_last_played",
+                    &[("date", &prefs.date_format.format_date(&game.last_played))]
+                )
+            ),
+            12,
+        )
+        .color(Palette::TEXT_DIM()),
     );
 
     let info_row = info_items;
 
-    let playtime_text = text(format!("Playtime: {}", game.playtime_display()))
-        .size(12)
-        .color(vt.text_light);
+    let playtime_text = ui_text(
+        tf("library_playtime", &[("time", &game.playtime_display())]),
+        12,
+    )
+    .color(Palette::TEXT_PRIMARY());
 
     let stats_row = if game.achievements_total > 0 {
         let pct = game.achievement_percent();
         row![
             playtime_text,
             space::horizontal(),
-            text(format!(
-                "{}/{} ({:.0}%)",
-                game.achievements_unlocked, game.achievements_total, pct
-            ))
-            .size(12)
-            .color(vt.text_light),
+            ui_text(
+                format!(
+                    "{}/{} ({})",
+                    game.achievements_unlocked,
+                    game.achievements_total,
+                    percent(pct, 0)
+                ),
+                12
+            )
+            .color(Palette::TEXT_PRIMARY()),
             container(progress_bar(0.0..=100.0, pct).girth(6)).width(120),
         ]
         .spacing(8)
@@ -793,7 +568,7 @@ fn game_card<'a>(
         row![
             playtime_text,
             space::horizontal(),
-            text("No achievements").size(12).color(vt.text_dim),
+            ui_text(t("library_no_achievements"), 12).color(Palette::TEXT_DIM()),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center)
@@ -803,24 +578,22 @@ fn game_card<'a>(
         Some(r) => {
             let filled = theme::icons::STAR.repeat(r as usize);
             let empty = theme::icons::STAR_O.repeat(10_usize.saturating_sub(r as usize));
-            text(format!("{}{} {}/10", filled, empty, r))
-                .size(11)
-                .color(theme::ACCENT_GOLD)
+            ui_text(format!("{}{} {}/10", filled, empty, r), 11).color(Palette::WARNING())
         }
-        None => text("Not rated").size(11).color(vt.text_dim),
+        None => ui_text(t("rating_none"), 11).color(Palette::TEXT_DIM()),
     };
 
     let text_spacing = if compact { 3 } else { 6 };
     let mut text_info = column![title_row, info_row, stats_row, rating_text,].spacing(text_spacing);
 
-    if show_descriptions && !game.description.is_empty() {
+    if prefs.show_game_descriptions && !game.description.is_empty() {
         let desc = if game.description.chars().count() > 120 {
             let truncated: String = game.description.chars().take(120).collect();
             format!("{}...", truncated)
         } else {
             game.description.clone()
         };
-        text_info = text_info.push(text(desc).size(11).color(vt.text_dim));
+        text_info = text_info.push(ui_text(desc, 11).color(Palette::TEXT_DIM()));
     }
 
     let card_content = if let Some(cover) = cover_element {
@@ -831,44 +604,37 @@ fn game_card<'a>(
         row![text_info].spacing(0).align_y(iced::Alignment::Center)
     };
 
-    let padding = if compact { 8 } else { 14 };
-    let card = container(card_content)
-        .padding(padding)
-        .width(Length::Fill)
-        .style(theme::card_style(bg_card, border_color, 8.0));
-
     let card_message = if bulk_mode {
         Message::ToggleBulkSelect(game_id)
     } else {
         Message::NavigateTo(Screen::GameDetail(game_id))
     };
 
-    let selected_border = is_selected && bulk_mode;
-    button(card)
+    let selected = is_selected && bulk_mode;
+    button(card_content)
         .on_press(card_message)
-        .padding(0)
+        .padding(if compact { 8 } else { 14 })
         .width(Length::Fill)
         .style(move |_: &Theme, status| {
             let hover = matches!(status, button::Status::Hovered | button::Status::Pressed);
+            let background = if selected {
+                Palette::BG_SELECTED()
+            } else if hover {
+                Palette::BG_CARD_HOVER()
+            } else {
+                Palette::BG_CARD()
+            };
             button::Style {
-                background: if selected_border {
-                    Some(Background::Color(Color::from_rgba(0.6, 0.8, 1.0, 0.05)))
-                } else if hover {
-                    Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.03)))
-                } else {
-                    None
-                },
-                border: if selected_border {
-                    Border {
-                        radius: 8.0.into(),
-                        color: Color::from_rgba(0.6, 0.8, 1.0, 0.3),
-                        width: 1.0,
-                    }
-                } else {
-                    Border {
-                        radius: 8.0.into(),
-                        ..Border::default()
-                    }
+                background: Some(Background::Color(background)),
+                text_color: Palette::TEXT_PRIMARY(),
+                border: Border {
+                    radius: 8.0.into(),
+                    color: if selected {
+                        Palette::ACCENT()
+                    } else {
+                        Palette::BORDER_SUBTLE()
+                    },
+                    width: 1.0,
                 },
                 ..button::Style::default()
             }

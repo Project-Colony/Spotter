@@ -41,9 +41,8 @@ Tests are in `tests/unit_tests.rs` and `tests/integration_tests.rs`. Each DB tes
 | Category | Count | What's tested |
 |----------|-------|---------------|
 | Playtime display | 3 | Format hours/minutes strings |
-| Models | 20+ | Enum roundtrips, Display impls, color values, settings serialization |
+| Models | 20+ | Enum roundtrips, Display impls, distinct platform and status colours, settings serialization |
 | Database | 8 | CRUD, batch save, achievements, playtime history, export/import, profile, settings |
-| Theme | 2 | ViewTheme high contrast, ThemeMode background differences |
 | API client | 3 | URL encode/decode, roundtrip |
 | Error | 2 | Display format, String conversion |
 
@@ -64,8 +63,11 @@ src/
 ├── lib.rs               # Module tree; public API for integration tests
 ├── app.rs               # Core state machine (~1300 lines)
 ├── models.rs            # All data structures (~800 lines)
+├── i18n/                # en.json, fr.json and the t/tf/tn lookup
 ├── db.rs                # SQLite operations
-├── theme.rs             # Colors and style helpers
+├── paths.rs             # File locations, copy from Spotter 0.3
+├── preferences.rs       # preferences.json load/save/import
+├── theme.rs             # Icons and style helpers on the Colony palette
 ├── error.rs             # SpotterError enum
 ├── api_client.rs        # HTTP utilities
 ├── images.rs            # Cover/icon download + caching
@@ -81,7 +83,7 @@ src/
     ├── library.rs       # Game list view
     ├── detail.rs        # Game detail view
     ├── stats.rs         # Statistics dashboard
-    ├── settings.rs      # Preferences view
+    ├── preferences.rs   # Preferences page
     ├── profile.rs       # Profile & data management
     ├── import.rs        # Import flows
     ├── sidebar.rs       # Navigation sidebar
@@ -94,7 +96,7 @@ docs/
 ├── ARCHITECTURE.md      # Architecture overview
 ├── DATA_MODEL.md        # Data model & DB schema
 ├── API_INTEGRATIONS.md  # External API documentation
-├── CONFIGURATION.md     # Settings & theming
+├── CONFIGURATION.md     # Preferences, languages and theming
 └── DEVELOPMENT.md       # This file
 ```
 
@@ -124,7 +126,9 @@ Always open a fresh connection per operation via `db::open()`. The connection us
 
 ### Styling
 
-Use `ViewTheme::from_settings()` at the top of each view function. For style closures (button/container styles), use the static constants from `theme.rs`.
+Take every colour from the active palette (`colony_ui::theme::Palette::*()`), in view code and in style closures alike, and the style helpers in `theme.rs`. Never write a colour literal: it would ignore the user's theme and high-contrast setting.
+
+Write text with `theme::ui_text(content, base)` rather than `text(..).size(N)`: it sizes the text with `colony_ui::sz(base)`, so both text-size preferences scale it, sets it in the interface font, so the dyslexia font reaches it, and keeps the Nerd Font glyphs inside it in the glyph font. A text input takes `.size(sz(N)).font(ui_font())`.
 
 ## Environment Variables
 

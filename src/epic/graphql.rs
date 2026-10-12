@@ -124,7 +124,7 @@ pub(super) fn graphql_post(
 }
 
 /// Fetch community rating for a game via GraphQL RatingsPolls API.
-/// Returns a review percentage (0–100) if available.
+/// Returns a review percentage (0-100) if available.
 pub(super) fn fetch_graphql_rating(agent: &ureq::Agent, namespace: &str) -> Option<u32> {
     let graphql_url = "https://store.epicgames.com/graphql";
     let query = serde_json::json!({
@@ -204,7 +204,7 @@ pub(super) fn fetch_achievement_definitions(agent: &ureq::Agent, namespace: &str
 /// Fetch achievement total for a game.
 /// Returns (0, achievements_total).
 ///
-/// NOTE: Player-specific unlock counts are unavailable — Epic's launcher OAuth
+/// NOTE: Player-specific unlock counts are unavailable: Epic's launcher OAuth
 /// client (launcherAppClient2) lacks the "achievements" scope, so all known
 /// GraphQL endpoints reject the Bearer token for playerAchievementGameRecords.
 /// Heroic and Legendary have the same limitation. We only fetch the public

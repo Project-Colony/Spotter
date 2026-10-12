@@ -8,10 +8,11 @@ use iced::Task;
 
 use crate::app::{Message, Spotter};
 use crate::db;
+use crate::i18n::{t, tf, tn};
 use crate::models::*;
 
-/// Error every write reports after a failed startup load.
-const NOT_LOADED: &str = "your saved data was not loaded, so changes are not saved";
+/// The import log keeps this many entries.
+const IMPORT_LOG_SIZE: usize = 50;
 
 impl Spotter {
     // ── Data loading ──
@@ -22,7 +23,7 @@ impl Spotter {
     ) -> Task<Message> {
         self.data_loaded = true;
         match *result {
-            Ok((games, profile, playtime, settings)) => {
+            Ok((games, profile, playtime, prefs)) => {
                 if !games.is_empty() {
                     self.games = games;
                 } else {
@@ -30,24 +31,25 @@ impl Spotter {
                 }
                 self.profile = profile;
                 self.playtime_data = playtime;
-                self.settings = settings;
+                self.preferences = prefs;
+                self.preferences.apply();
                 // Apply start screen setting
-                self.screen = match self.settings.start_screen {
+                self.screen = match self.preferences.start_screen {
                     StartScreen::Statistics => crate::app::Screen::Statistics,
                     StartScreen::Import => crate::app::Screen::Import,
                     StartScreen::Profile => crate::app::Screen::Profile,
                     StartScreen::Library => crate::app::Screen::Library,
                 };
                 // Restore sort order from settings
-                self.sort_order = self.settings.default_sort_order;
+                self.sort_order = self.preferences.default_sort_order;
                 // Restore filters if remember_filters is enabled
-                if self.settings.remember_filters {
-                    self.filter_status = self.settings.last_filter_status;
-                    self.filter_platform = self.settings.last_filter_platform;
+                if self.preferences.remember_filters {
+                    self.filter_status = self.preferences.last_filter_status;
+                    self.filter_platform = self.preferences.last_filter_platform;
                 }
                 // Apply default platform/status from settings for add-game form
-                self.new_game_platform = self.settings.default_platform;
-                self.new_game_status = self.settings.default_status;
+                self.new_game_platform = self.preferences.default_platform;
+                self.new_game_status = self.preferences.default_status;
                 // Build caches once at startup
                 self.refresh_cover_cache();
                 self.invalidate_filter_cache();
@@ -81,10 +83,7 @@ impl Spotter {
             }
             Err(e) => {
                 self.load_failed = true;
-                self.show_error(format!(
-                    "Your saved data was not loaded ({}). Nothing will be saved until Spotter restarts and loads it.",
-                    e
-                ));
+                self.show_error(tf("error_load_failed", &[("error", &e)]));
             }
         }
         Task::none()
@@ -96,15 +95,15 @@ impl Spotter {
         match db::export_games_json_from_slice(&self.games) {
             Ok(json) => self.spawn_write(
                 move || {
-                    let export_path = db::exports_dir().join("spotter_export.json");
+                    let export_path = crate::paths::layout()?.exports.join("spotter_export.json");
                     std::fs::write(&export_path, &json)
-                        .map_err(|e| format!("Write error: {}", e))?;
+                        .map_err(|e| tf("error_write", &[("error", &e)]))?;
                     Ok(export_path.to_string_lossy().to_string())
                 },
                 Message::ExportComplete,
             ),
             Err(e) => {
-                self.show_error(format!("Export error: {}", e));
+                self.show_error(tf("error_export", &[("error", &e)]));
                 Task::none()
             }
         }
@@ -114,15 +113,15 @@ impl Spotter {
         match db::export_games_csv_from_slice(&self.games) {
             Ok(csv) => self.spawn_write(
                 move || {
-                    let export_path = db::exports_dir().join("spotter_export.csv");
+                    let export_path = crate::paths::layout()?.exports.join("spotter_export.csv");
                     std::fs::write(&export_path, &csv)
-                        .map_err(|e| format!("Write error: {}", e))?;
+                        .map_err(|e| tf("error_write", &[("error", &e)]))?;
                     Ok(export_path.to_string_lossy().to_string())
                 },
                 Message::ExportComplete,
             ),
             Err(e) => {
-                self.show_error(format!("Export error: {}", e));
+                self.show_error(tf("error_export", &[("error", &e)]));
                 Task::none()
             }
         }
@@ -222,14 +221,15 @@ impl Spotter {
                 eprintln!("[app] {} import returned {} games", platform, count);
                 let (added, updated) = self.merge_imported_games(new_games);
                 self.invalidate_filter_cache();
-                let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-                if self.import_history.len() >= 50 {
-                    self.import_history.pop_front();
-                }
-                self.import_history.push_back(format!(
-                    "[{}] {}: {} found, {} new, {} updated",
-                    timestamp, platform, count, added, updated
-                ));
+                self.log_import(Ok(tf(
+                    "import_log_done",
+                    &[
+                        ("platform", &platform),
+                        ("found", &count),
+                        ("added", &added),
+                        ("updated", &updated),
+                    ],
+                )));
 
                 // Persist ALL games (including new ones) to DB immediately,
                 // then move new games to the cascade queue for visual effect.
@@ -241,9 +241,11 @@ impl Spotter {
                 let backup_task = match db::export_games_json_from_slice(&self.games) {
                     Ok(json) => self.spawn_write(
                         move || {
-                            let path = db::exports_dir().join("spotter_auto_backup.json");
+                            let path = crate::paths::layout()?
+                                .exports
+                                .join("spotter_auto_backup.json");
                             std::fs::write(&path, &json)
-                                .map_err(|e| format!("Auto-backup write error: {}", e))?;
+                                .map_err(|e| tf("error_backup", &[("error", &e)]))?;
                             eprintln!("[app] Auto-backup saved to {:?}", path);
                             Ok(())
                         },
@@ -263,15 +265,30 @@ impl Spotter {
                     self.import_queue[queue_start..].reverse();
                     self.import_queue_total += added;
 
-                    self.import_status = format!("{}: importing {} games...", platform, added);
+                    self.import_status = Ok(tn("import_adding", added, &[("platform", &platform)]));
 
-                    let drain = Self::cascade_delay(30);
+                    // The cascade is an animation: with effects off or reduced
+                    // motion on, every new game lands at once.
+                    let drain = if colony_ui::effects_enabled() {
+                        Self::cascade_delay(30)
+                    } else {
+                        self.handle_drain_import_queue()
+                    };
                     Task::batch([save, drain, backup_task])
                 } else {
-                    self.import_status =
-                        format!("{}: {} found, {} updated", platform, count, updated);
-                    self.show_success(format!("{}: {} updated", platform, updated));
-                    let covers = if self.settings.download_covers_auto {
+                    self.import_status = Ok(tf(
+                        "import_updated",
+                        &[
+                            ("platform", &platform),
+                            ("found", &count),
+                            ("updated", &updated),
+                        ],
+                    ));
+                    self.show_success(tf(
+                        "toast_import_updated",
+                        &[("platform", &platform), ("updated", &updated)],
+                    ));
+                    let covers = if self.preferences.download_covers_auto {
                         Task::perform(async {}, |_| Message::DownloadCovers)
                     } else {
                         Task::none()
@@ -280,17 +297,24 @@ impl Spotter {
                 }
             }
             Err(e) => {
-                self.import_status = format!("{} error: {}", platform, e);
-                let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-                if self.import_history.len() >= 50 {
-                    self.import_history.pop_front();
-                }
-                self.import_history
-                    .push_back(format!("[{}] {} ERROR: {}", timestamp, platform, e));
+                let failure = tf("import_failed", &[("platform", &platform), ("error", &e)]);
+                self.import_status = Err(failure.clone());
+                self.log_import(Err(failure));
                 self.show_error(e);
                 Task::none()
             }
         }
+    }
+
+    /// Add a line, stamped with the time, to the import log.
+    fn log_import(&mut self, entry: Result<String, String>) {
+        let time = chrono::Local::now().format("%H:%M:%S");
+        if self.import_history.len() >= IMPORT_LOG_SIZE {
+            self.import_history.pop_front();
+        }
+        let stamp = |text: String| format!("[{time}] {text}");
+        self.import_history
+            .push_back(entry.map(stamp).map_err(stamp));
     }
 
     // ── Cascade import ──
@@ -304,7 +328,9 @@ impl Spotter {
 
         // Adaptive batch size: larger batches for big queues so 1 600-game imports
         // finish in seconds instead of minutes.
-        let batch = if remaining_before > 500 {
+        let batch = if !colony_ui::effects_enabled() {
+            remaining_before
+        } else if remaining_before > 500 {
             50
         } else if remaining_before > 200 {
             25
@@ -331,7 +357,10 @@ impl Spotter {
         let done = self.import_queue_total - remaining;
 
         if remaining > 0 {
-            self.import_status = format!("Importing... {}/{}", done, self.import_queue_total);
+            self.import_status = Ok(tf(
+                "import_progress",
+                &[("done", &done), ("total", &self.import_queue_total)],
+            ));
             // Adaptive delay: slow down when few remain for a nicer visual finish.
             let delay = if remaining > 200 {
                 30
@@ -345,13 +374,13 @@ impl Spotter {
             return Self::cascade_delay(delay);
         } else {
             // Cascade complete
-            self.import_status =
-                format!("Import complete: {} games added", self.import_queue_total);
-            self.show_success(format!("{} games imported!", self.import_queue_total));
+            let total = self.import_queue_total;
+            self.import_status = Ok(tn("import_complete", total, &[]));
+            self.show_success(tn("toast_games_imported", total, &[]));
             self.import_queue_total = 0;
             // Rebuild cover cache: re-imported games may already have covers on disk.
             self.refresh_cover_cache();
-            if self.settings.download_covers_auto {
+            if self.preferences.download_covers_auto {
                 return Task::perform(async {}, |_| Message::DownloadCovers);
             }
         }
@@ -431,7 +460,7 @@ impl Spotter {
         let mut updated = 0;
 
         for game in new_games {
-            // Lookup by platform ID — HashMap<String>::get accepts &str via Borrow
+            // Lookup by platform ID: HashMap<String>::get accepts &str via Borrow
             let idx_opt = game
                 .steam_appid
                 .and_then(|id| steam_idx.get(&id))
@@ -523,47 +552,49 @@ impl Spotter {
         F: FnOnce() -> Result<T, String> + Send + 'static,
     {
         if self.load_failed {
-            return Task::done(msg(Err(NOT_LOADED.into())));
+            return Task::done(msg(Err(t("error_not_loaded").into())));
         }
         crate::app::spawn_task(f, msg)
     }
 
-    /// Save profile to database and OS keyring in a background thread.
+    /// Save the profile to the database and its tokens to the OS keyring, in a
+    /// background thread.
     pub(crate) fn save_profile_task(&self) -> Task<Message> {
         let profile = self.profile.clone();
         self.spawn_write(
             move || {
                 let conn = db::open()?;
-                crate::keyring::save_profile(&conn, &profile)?;
+                let file = &crate::paths::layout()?.credentials;
+                crate::keyring::save_profile(&conn, file, &profile)?;
                 Ok(())
             },
             Message::ProfileSaved,
         )
     }
 
-    /// Silently persist the profile to the database and OS keyring (no success toast).
+    /// Like `save_profile_task`, without a success toast.
     pub(crate) fn persist_profile(&self) -> Task<Message> {
         let profile = self.profile.clone();
         self.spawn_write(
             move || {
                 let conn = db::open()?;
-                crate::keyring::save_profile(&conn, &profile)?;
+                let file = &crate::paths::layout()?.credentials;
+                crate::keyring::save_profile(&conn, file, &profile)?;
                 Ok(())
             },
             Message::ProfileAutoSaved,
         )
     }
 
-    /// Persist settings to the database.
-    pub(crate) fn persist_settings(&self) -> Task<Message> {
-        let settings = self.settings.clone();
+    /// Persist the preferences to `preferences.json`.
+    pub(crate) fn persist_preferences(&self) -> Task<Message> {
+        let prefs = self.preferences.clone();
         self.spawn_write(
             move || {
-                let conn = db::open()?;
-                db::save_settings(&conn, &settings)?;
+                crate::preferences::save(&crate::paths::layout()?.preferences, &prefs)?;
                 Ok(())
             },
-            |r| Message::Settings(crate::messages::SettingsMessage::Saved(r)),
+            |r| Message::Preferences(crate::messages::PreferencesMessage::Saved(r)),
         )
     }
 
@@ -680,9 +711,51 @@ mod tests {
         assert!(app.data_loaded);
         assert!(app.load_failed);
         let toast = app.error_message.as_deref().unwrap();
-        assert!(toast.contains("not loaded"), "{toast}");
-        assert!(toast.contains("database is locked"), "{toast}");
-        assert_eq!(reported_now(&app), Some(Err(NOT_LOADED.to_string())));
+        assert_eq!(
+            toast,
+            tf("error_load_failed", &[("error", &"database is locked")])
+        );
+        assert_eq!(
+            reported_now(&app),
+            Some(Err(t("error_not_loaded").to_string()))
+        );
+    }
+
+    #[test]
+    fn without_effects_an_import_lands_at_once() {
+        let game = |title: &str| Game {
+            id: None,
+            title: title.into(),
+            platform: crate::models::Platform::Steam,
+            playtime_minutes: 0,
+            achievements_unlocked: 0,
+            achievements_total: 0,
+            status: crate::models::GameStatus::Unplayed,
+            rating: None,
+            genre: String::new(),
+            last_played: String::new(),
+            cover_url: String::new(),
+            steam_appid: None,
+            gog_id: None,
+            epic_id: None,
+            xbox_id: None,
+            psn_id: None,
+            notes: String::new(),
+            description: String::new(),
+            release_date: String::new(),
+            review_percent: None,
+            tags: String::new(),
+        };
+        let mut app = Spotter::default();
+
+        // Effects are a process-wide switch; no other test reads it.
+        colony_ui::set_effects(false);
+        let _ = app.handle_import_result("Steam", Ok(vec![game("A"), game("B"), game("C")]));
+        colony_ui::set_effects(true);
+
+        assert!(app.import_queue.is_empty());
+        assert_eq!(app.games.len(), 3);
+        assert_eq!(app.import_queue_total, 0, "the import is already complete");
     }
 
     #[test]

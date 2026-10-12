@@ -3,7 +3,7 @@ pub mod detail;
 pub mod helpers;
 pub mod import;
 pub mod library;
+pub mod preferences;
 pub mod profile;
-pub mod settings;
 pub mod sidebar;
 pub mod stats;

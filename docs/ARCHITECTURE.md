@@ -12,14 +12,17 @@ app.rs (1300+ lines)    State machine: Spotter struct, Message enum, update(), v
 │   ├── library.rs      Game list with search, filters, sort
 │   ├── detail.rs       Single game: metadata, achievements, rating, notes
 │   ├── stats.rs        Statistics dashboard with charts
-│   ├── settings.rs     Three-tab preferences (General / Appearances / Accessibility)
+│   ├── preferences.rs  Preferences page on the shared Colony kit
 │   ├── profile.rs      User profile, credentials, data export/import
 │   ├── import.rs       Platform import cards with step-by-step flows
 │   ├── sidebar.rs      Navigation + quick stats
 │   └── add_game.rs     Manual game entry form
-├── models.rs           Data structures: Game, Settings, Platform, Achievement, etc.
+├── models.rs           Data structures: Game, Preferences, Platform, Achievement, etc.
+├── i18n/               English and French strings (en.json, fr.json) and t/tf/tn
 ├── db.rs               SQLite: schema, CRUD, playtime history, export/import
-├── theme.rs            Color constants, ViewTheme, style helpers
+├── paths.rs            File locations (colony_ui::paths) and the copy from Spotter 0.3
+├── preferences.rs      preferences.json: lenient load, save, import from Spotter 0.3
+├── theme.rs            Icons and style helpers on the Colony palette
 ├── error.rs            SpotterError enum (migration in progress)
 ├── api_client.rs       HTTP agents, retry logic, URL encoding, browser open
 ├── images.rs           Cover art + achievement icon download/caching
@@ -67,7 +70,7 @@ All state mutations pass through the `Message` enum in `app.rs`. Async operation
 │  Profile ────┼───►│  Profile (credentials, export)      │
 │              │    │                                     │
 │  ── Quick ── │    │  GameDetail (from library click)    │
-│  Playing: X  │    │  Settings (from sidebar logo)       │
+│  Playing: X  │    │  Preferences (from the Spotter name)│
 │  Completed: Y│    │                                     │
 │  Unplayed: Z │    └────────────────────────────────────┘
 │              │
@@ -112,14 +115,14 @@ Existing user data (ratings, notes, status) is always preserved. Only empty meta
 
 ### Theme System
 
-Two layers:
-- **Static constants** (`theme.rs`): Used in style closures where `ViewTheme` isn't available
-- **ViewTheme struct**: Computed per-render from `Settings`, provides theme-mode-aware colors
+Colours come from colony-ui. `StandardPreferences::apply` sets the theme, accent and high contrast at startup and on every change; widgets read the active palette wherever they are drawn, including inside style closures:
 
 ```rust
-let vt = ViewTheme::from_settings(&app.settings);
-// vt.bg_card, vt.text_muted, vt.border, etc.
+text(label).color(Palette::TEXT_MUTED())
+container(content).style(theme::card_style(Palette::BG_CARD(), Palette::BORDER_SUBTLE(), 8.0))
 ```
+
+Platforms and game statuses keep one colour on every theme: a shared accent swatch picked by key (`Platform::accent_key`, `GameStatus::accent_key`).
 
 ## Dependencies
 

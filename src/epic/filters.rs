@@ -11,7 +11,7 @@ pub(super) fn is_non_game_app_name(app_name: &str) -> bool {
     let upper = app_name.to_uppercase();
     // Hex-only strings (32+ chars) are catalog IDs, not real app names
     if app_name.len() >= 32 && app_name.chars().all(|c| c.is_ascii_hexdigit()) {
-        return false; // Don't skip — might resolve to a game via catalog
+        return false; // Don't skip: might resolve to a game via catalog
     }
     upper.contains("PROMO")
         || upper.contains("COUPON")

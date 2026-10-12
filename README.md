@@ -7,9 +7,10 @@ A cross-platform game library tracker and statistics dashboard built with [Rust]
 - **Multi-platform imports** - Steam, GOG, Epic Games, Xbox (via OpenXBL), and PlayStation Network
 - **Achievement tracking** - view and track achievements with icons, descriptions, and unlock dates
 - **Statistics dashboard** - playtime charts, status/platform distribution, most played games
-- **Customizable UI** - dark/darker/midnight themes, accent colors, UI scaling, sidebar width, compact mode
-- **Accessibility** - high contrast mode, large click targets, status label toggles
-- **Settings** - date format, notification preferences, toast duration, start screen, default status/platform
+- **Customizable UI** - the shared Colony themes and accents, two text sizes, sidebar width, compact mode
+- **Accessibility** - high contrast, a dyslexia-friendly font, reduced motion, large click targets, status labels
+- **Preferences** - language, date format, notifications, start screen, default status/platform
+- **English and French** - the interface follows the system language, or the one picked in Preferences
 - **Local-first** - all data stored in a local SQLite database, no cloud dependency
 
 ## Running the binaries
@@ -78,9 +79,12 @@ src/
   lib.rs           Module tree; public modules for tests
   app.rs           Application state, messages, update loop
   db.rs            SQLite database operations
+  paths.rs         Where Spotter's files live, and the copy from Spotter 0.3
+  preferences.rs   preferences.json: load, save, import from Spotter 0.3
   keyring.rs       Platform tokens in the OS keyring
-  models.rs        Data structures (Game, Platform, Settings, etc.)
-  theme.rs         Color constants and ViewTheme
+  models.rs        Data structures (Game, Platform, Preferences, etc.)
+  i18n/            Interface strings: en.json, fr.json and the lookup
+  theme.rs         Icons and style helpers on the Colony palette
   steam.rs         Steam import + HTML scraping
   steam_auth.rs    Steam browser login flow
   gog.rs           GOG Galaxy import
@@ -88,19 +92,29 @@ src/
   xbox.rs          Xbox Live import via OpenXBL
   playstation.rs   PSN import via trophy API
   images.rs        Cover art + achievement icon caching
-  views/           UI views (library, detail, stats, settings, etc.)
+  views/           UI views (library, detail, stats, preferences, etc.)
 tests/
   unit_tests.rs    Unit + integration tests
 ```
 
 ## Data Storage
 
-All data is stored locally:
-- **Database**: `~/.local/share/spotter/spotter.db` (Linux) or equivalent `dirs::data_dir()`
-- **Covers**: `~/.local/share/spotter/covers/`
-- **Achievement icons**: `~/.local/share/spotter/achievement_icons/`
-- **Settings**: Stored as JSON inside the SQLite database
-- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they stay unencrypted in the database and the Profile page says so.
+All data is stored locally, under `Colony/Spotter/` in the platform's folders:
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| Config | `~/.config/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| Data | `~/.local/share/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
+| Cache | `~/.cache/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\cache\` | `~/Library/Caches/Colony/Spotter/` |
+
+- **Preferences**: `<config>/preferences/preferences.json`
+- **Library database**: `<data>/library/spotter.db` (SQLite)
+- **Exports and the automatic backup**: `<data>/exports/`
+- **Import log**: `<data>/logs/import.log`
+- **Covers and achievement icons**: `<cache>/covers/` and `<cache>/achievement_icons/`, downloaded again when deleted
+- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they are kept unencrypted in `<config>/credentials/tokens.json`, readable by your user only, and the Profile page says so.
+
+Spotter 0.3 and earlier kept everything in the config folder (`data/`, `exports/`, `logs/`, `cache/`). The first start of a newer Spotter copies the library, the exports and the log to the folders above, imports the settings from the old database into `preferences.json`, and leaves the old files where they are.
 
 ## Code signing policy
 
@@ -115,7 +129,7 @@ Team roles and members:
 
 ### Privacy policy
 
-Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in the local database instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
+Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in a file of its config folder that only your user can read instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
 
 - **Imports, when you start one** from the Import screen. Spotter contacts the platform you picked and sends it the credentials you entered for it, plus the ids of your games:
   - Steam: `api.steampowered.com` (your Web API key and Steam ID, to list owned games), `steamcommunity.com` (your Steam ID, to read achievements from your profile) and `store.steampowered.com` (game details).
@@ -124,7 +138,7 @@ Spotter has no telemetry, no analytics and no update check, and sends nothing to
   - Xbox: `xbl.io` (your OpenXBL API key).
   - PlayStation: `ca.account.sony.com` (your NPSSO token, exchanged for an access token), then `m.np.playstation.com` with that token.
 - **Steam login**, when you use it: Spotter opens Steam's sign-in page in your browser, receives the answer on a local port of your own computer (127.0.0.1) and asks `steamcommunity.com` to confirm it.
-- **Cover art and achievement icons**, downloaded from the image addresses stored with each game, which come from those platforms (or from a JSON backup you import): covers after an import, unless you turn off automatic cover downloads in Settings; achievement icons when you open a Steam game's page.
+- **Cover art and achievement icons**, downloaded from the image addresses stored with each game, which come from those platforms (or from a JSON backup you import): covers after an import, unless you turn off automatic cover downloads in Preferences; achievement icons when you open a Steam game's page.
 - **At startup**, if you have connected GOG or Epic Games, Spotter renews that login automatically by sending the saved refresh token to `auth.gog.com` or `account-public-service-prod.ol.epicgames.com`.
 
 Links such as a game's store page open in your browser; Spotter itself sends nothing for them.
