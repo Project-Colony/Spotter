@@ -63,6 +63,7 @@ src/
 ├── lib.rs               # Module tree; public API for integration tests
 ├── app.rs               # Core state machine (~1300 lines)
 ├── models.rs            # All data structures (~800 lines)
+├── i18n/                # en.json, fr.json and the t/tf/tn lookup
 ├── db.rs                # SQLite operations
 ├── paths.rs             # File locations, copy from Spotter 0.3
 ├── preferences.rs       # preferences.json load/save/import
@@ -82,7 +83,7 @@ src/
     ├── library.rs       # Game list view
     ├── detail.rs        # Game detail view
     ├── stats.rs         # Statistics dashboard
-    ├── settings.rs      # Preferences view
+    ├── preferences.rs   # Preferences page
     ├── profile.rs       # Profile & data management
     ├── import.rs        # Import flows
     ├── sidebar.rs       # Navigation sidebar
@@ -95,7 +96,7 @@ docs/
 ├── ARCHITECTURE.md      # Architecture overview
 ├── DATA_MODEL.md        # Data model & DB schema
 ├── API_INTEGRATIONS.md  # External API documentation
-├── CONFIGURATION.md     # Settings & theming
+├── CONFIGURATION.md     # Preferences, languages and theming
 └── DEVELOPMENT.md       # This file
 ```
 

@@ -156,7 +156,7 @@ fn exchange_npsso(npsso: &str) -> Result<String, String> {
     };
 
     if code.is_empty() {
-        return Err("Empty authorization code. NPSSO token may be expired.".into());
+        return Err(crate::i18n::t("error_psn_expired").into());
     }
 
     eprintln!("[psn] Got authorization code, exchanging for access token...");

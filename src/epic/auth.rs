@@ -128,7 +128,7 @@ pub fn exchange_code(code: &str) -> Result<EpicLoginResult, String> {
 /// Returns (access_token, refresh_token, account_id, display_name).
 pub fn refresh_token(refresh: &str) -> Result<EpicLoginResult, String> {
     if refresh.is_empty() {
-        return Err("No refresh token available. Please login again.".into());
+        return Err(crate::i18n::t("error_login_expired").into());
     }
 
     let url = format!("{}/account/api/oauth/token", EPIC_OAUTH_HOST);

@@ -1,16 +1,16 @@
 use std::collections::{BTreeSet, HashSet, VecDeque};
 
-use colony_ui::preferences::Change;
 use colony_ui::theme::Palette;
 use iced::{Element, Task, Theme};
 
 use crate::db;
-use crate::messages::{AuthMessage, SettingsMessage};
+use crate::i18n::{t, tf, tn};
+use crate::messages::{AuthMessage, PreferencesMessage};
 use crate::models::*;
 use crate::views;
 
 /// Type alias to reduce complexity in DataLoaded / load_data signatures.
-pub type LoadResult = (Vec<Game>, UserProfile, Vec<(String, u32)>, Settings);
+pub type LoadResult = (Vec<Game>, UserProfile, Vec<(String, u32)>, Preferences);
 
 /// GOG import result: games + optionally refreshed (access_token, refresh_token).
 pub type GogImportResult = (Vec<Game>, Option<(String, String)>);
@@ -35,7 +35,7 @@ pub enum Screen {
     Profile,
     Import,
     AddGame,
-    Settings,
+    Preferences,
 }
 
 #[derive(Debug, Clone)]
@@ -102,12 +102,8 @@ pub enum Message {
     AddGamePlatformChanged(Platform),
     AddGameStatusChanged(GameStatus),
     SaveNewGame,
-    // Settings (delegated to handlers/settings.rs)
-    Settings(SettingsMessage),
-    /// A change from the shared Colony preferences widgets.
-    Preference(Change),
-    /// Open or close a collapsible preferences section, by its key.
-    TogglePreferenceSection(&'static str),
+    // Preferences page (delegated to handlers/preferences.rs)
+    Preferences(PreferencesMessage),
     // Undo deletion
     UndoDelete,
     PermanentDelete(Vec<i64>),
@@ -139,9 +135,9 @@ pub enum Message {
     NoOp,
 }
 
-impl From<SettingsMessage> for Message {
-    fn from(msg: SettingsMessage) -> Self {
-        Message::Settings(msg)
+impl From<PreferencesMessage> for Message {
+    fn from(msg: PreferencesMessage) -> Self {
+        Message::Preferences(msg)
     }
 }
 
@@ -162,7 +158,8 @@ pub struct Spotter {
     pub playtime_data: Vec<(String, u32)>,
     /// Platforms currently importing (e.g. "Steam", "GOG"). Multiple can run in parallel.
     pub importing: BTreeSet<String>,
-    pub import_status: String,
+    /// The import banner's last line: `Err` when it reports a failure.
+    pub import_status: Result<String, String>,
     pub error_message: Option<String>,
     pub success_message: Option<String>,
     pub data_loaded: bool,
@@ -189,24 +186,24 @@ pub struct Spotter {
     pub new_game_genre: String,
     pub new_game_platform: Platform,
     pub new_game_status: GameStatus,
-    // Settings
-    pub settings: Settings,
-    pub settings_section: SettingsSection,
+    pub preferences: Preferences,
+    /// The Preferences page's selected category, by index.
+    pub preferences_category: usize,
+    /// Where closing the Preferences page goes back to.
+    pub screen_before_preferences: Screen,
     /// Preferences sections the user opened; every section starts collapsed.
     pub preference_sections: HashSet<String>,
     // Undo delete (supports single + bulk)
     pub recently_deleted: Vec<(Game, i64)>,
     // Profile save feedback
     pub profile_just_saved: bool,
-    // Settings save feedback
-    pub settings_just_saved: bool,
     // First launch onboarding
     pub first_launch: bool,
     // Bulk operations
     pub bulk_mode: bool,
     pub bulk_selected: HashSet<i64>,
     // Import history log
-    pub import_history: VecDeque<String>,
+    pub import_history: VecDeque<Result<String, String>>,
     // Cascade import queue (games appear one-by-one)
     pub import_queue: Vec<Game>,
     pub import_queue_total: usize,
@@ -234,7 +231,7 @@ impl Default for Spotter {
             profile: UserProfile::default(),
             playtime_data: Vec::new(),
             importing: BTreeSet::new(),
-            import_status: String::new(),
+            import_status: Ok(String::new()),
             error_message: None,
             success_message: None,
             data_loaded: false,
@@ -253,12 +250,12 @@ impl Default for Spotter {
             new_game_genre: String::new(),
             new_game_platform: Platform::Steam,
             new_game_status: GameStatus::Unplayed,
-            settings: Settings::default(),
-            settings_section: SettingsSection::General,
+            preferences: Preferences::default(),
+            preferences_category: 0,
+            screen_before_preferences: Screen::Library,
             preference_sections: HashSet::new(),
             recently_deleted: Vec::new(),
             profile_just_saved: false,
-            settings_just_saved: false,
             first_launch: false,
             bulk_mode: false,
             bulk_selected: HashSet::new(),
@@ -311,7 +308,7 @@ impl Spotter {
     }
 
     pub(crate) fn show_success(&mut self, msg: impl Into<String>) {
-        if !self.settings.notifications_enabled {
+        if !self.preferences.notifications_enabled {
             return;
         }
         self.success_message = Some(msg.into());
@@ -339,7 +336,7 @@ impl Spotter {
             self.ensure_filter_cache();
         }
         if self.toast_id != old_toast_id {
-            let duration = self.settings.toast_duration.millis();
+            let duration = self.preferences.toast_duration.millis();
             Task::batch([task, Self::toast_dismiss_timer(self.toast_id, duration)])
         } else {
             task
@@ -389,8 +386,8 @@ impl Spotter {
                 if let Screen::AddGame = &screen {
                     self.new_game_title.clear();
                     self.new_game_genre.clear();
-                    self.new_game_platform = self.settings.default_platform;
-                    self.new_game_status = self.settings.default_status;
+                    self.new_game_platform = self.preferences.default_platform;
+                    self.new_game_status = self.preferences.default_status;
                 }
                 self.screen = screen;
             }
@@ -400,7 +397,7 @@ impl Spotter {
             }
             Message::OpenUrl(url) => {
                 if let Err(e) = crate::api_client::open_browser(&url) {
-                    self.show_error(format!("Failed to open URL: {}", e));
+                    self.show_error(tf("error_open_url", &[("error", &e)]));
                 }
             }
             Message::ClearAllFilters => {
@@ -412,24 +409,24 @@ impl Spotter {
             Message::FilterStatus(status) => {
                 self.filter_status = status;
                 self.invalidate_filter_cache();
-                if self.settings.remember_filters {
-                    self.settings.last_filter_status = status;
-                    return self.persist_settings();
+                if self.preferences.remember_filters {
+                    self.preferences.last_filter_status = status;
+                    return self.persist_preferences();
                 }
             }
             Message::FilterPlatform(platform) => {
                 self.filter_platform = platform;
                 self.invalidate_filter_cache();
-                if self.settings.remember_filters {
-                    self.settings.last_filter_platform = platform;
-                    return self.persist_settings();
+                if self.preferences.remember_filters {
+                    self.preferences.last_filter_platform = platform;
+                    return self.persist_preferences();
                 }
             }
             Message::SetSortOrder(order) => {
                 self.sort_order = order;
-                self.settings.default_sort_order = order;
+                self.preferences.default_sort_order = order;
                 self.invalidate_filter_cache();
-                return self.persist_settings();
+                return self.persist_preferences();
             }
             Message::SetGameStatus(id, status) => {
                 if let Some(idx) = self.find_game_index(id) {
@@ -455,7 +452,7 @@ impl Spotter {
             }
             // Delete with confirmation
             Message::ConfirmDeleteGame(id) => {
-                if self.settings.confirm_before_delete {
+                if self.preferences.confirm_before_delete {
                     self.confirm_delete = Some(id);
                 } else {
                     return self.process_message(Message::DeleteGame(id));
@@ -465,6 +462,8 @@ impl Spotter {
                 if self.confirm_delete.is_some() || self.confirm_bulk_delete {
                     self.confirm_delete = None;
                     self.confirm_bulk_delete = false;
+                } else if self.screen == Screen::Preferences {
+                    return self.handle_preferences(PreferencesMessage::Toggle);
                 } else {
                     self.screen = Screen::Library;
                 }
@@ -476,7 +475,7 @@ impl Spotter {
                     self.recently_deleted.push((game, id));
                     self.screen = Screen::Library;
                     self.invalidate_filter_cache();
-                    self.show_success("Game deleted. Click Undo to restore it.");
+                    self.show_success(t("toast_game_deleted"));
                     let ids = vec![id];
                     return delay_task(8000, move || Message::PermanentDelete(ids));
                 }
@@ -489,11 +488,7 @@ impl Spotter {
                         self.games.push(game);
                     }
                     self.invalidate_filter_cache();
-                    if count == 1 {
-                        self.show_success("Game restored");
-                    } else {
-                        self.show_success(format!("{} games restored", count));
-                    }
+                    self.show_success(tn("toast_games_restored", count, &[]));
                     return self.persist_games();
                 }
             }
@@ -543,16 +538,16 @@ impl Spotter {
             Message::ProfileSaved(result) => match result {
                 Ok(()) => {
                     self.profile_just_saved = true;
-                    self.show_success("Profile saved successfully!");
+                    self.show_success(t("toast_profile_saved"));
                     return delay_task(3000, || Message::ProfileSaveShown);
                 }
                 Err(e) => {
-                    self.show_error(format!("Profile save error: {}", e));
+                    self.show_error(tf("error_profile_save", &[("error", &e)]));
                 }
             },
             Message::ProfileAutoSaved(result) => {
                 if let Err(e) = result {
-                    self.show_error(format!("Profile save error: {}", e));
+                    self.show_error(tf("error_profile_save", &[("error", &e)]));
                 }
             }
             // ── Auth handlers (delegated to handlers/auth.rs) ──
@@ -590,7 +585,7 @@ impl Spotter {
             }
             Message::DataSaved(result) => {
                 if let Err(e) = result {
-                    self.show_error(format!("Save error: {}", e));
+                    self.show_error(tf("error_save", &[("error", &e)]));
                 }
             }
             Message::GameIdsMapped(result) => {
@@ -620,7 +615,7 @@ impl Spotter {
                         }
                     }
                     Err(e) => {
-                        self.show_error(format!("Save error: {}", e));
+                        self.show_error(tf("error_save", &[("error", &e)]));
                     }
                 }
             }
@@ -634,10 +629,10 @@ impl Spotter {
             Message::ExportCsv => return self.handle_export_csv(),
             Message::ExportComplete(result) => match result {
                 Ok(path) => {
-                    self.show_success(format!("Exported to {}", path));
+                    self.show_success(tf("toast_exported", &[("path", &path)]));
                 }
                 Err(e) => {
-                    self.show_error(format!("Export error: {}", e));
+                    self.show_error(tf("error_export", &[("error", &e)]));
                 }
             },
             Message::AchievementsLoaded(result) => {
@@ -660,7 +655,7 @@ impl Spotter {
             Message::SaveNewGame => {
                 let title = self.new_game_title.trim().to_string();
                 if title.is_empty() {
-                    self.show_error("Game title is required");
+                    self.show_error(t("error_title_required"));
                     return Task::none();
                 }
                 let title_lower = title.to_lowercase();
@@ -669,7 +664,7 @@ impl Spotter {
                     .iter()
                     .any(|g| g.title.to_lowercase() == title_lower)
                 {
-                    self.show_error(format!("'{}' already exists in your library", title));
+                    self.show_error(tf("error_game_exists", &[("title", &title)]));
                     return Task::none();
                 }
                 let game = Game {
@@ -697,35 +692,28 @@ impl Spotter {
                 };
                 self.games.push(game);
                 self.invalidate_filter_cache();
-                self.show_success(format!("'{}' added to library", self.new_game_title.trim()));
+                self.show_success(tf(
+                    "toast_game_added",
+                    &[("title", &self.new_game_title.trim())],
+                ));
                 self.new_game_title.clear();
                 self.new_game_genre.clear();
-                self.new_game_platform = self.settings.default_platform;
-                self.new_game_status = self.settings.default_status;
+                self.new_game_platform = self.preferences.default_platform;
+                self.new_game_status = self.preferences.default_status;
                 self.screen = Screen::Library;
                 return self.persist_games();
             }
-            // Settings (delegated to handlers/settings.rs)
-            Message::Settings(settings_msg) => {
-                return self.handle_settings(settings_msg);
-            }
-            Message::Preference(change) => {
-                self.settings.standard.update(change);
-                return self.persist_settings();
-            }
-            Message::TogglePreferenceSection(key) => {
-                if !self.preference_sections.remove(key) {
-                    self.preference_sections.insert(key.to_string());
-                }
+            Message::Preferences(msg) => {
+                return self.handle_preferences(msg);
             }
             Message::ToggleFavorite(id) => {
-                if let Some(pos) = self.settings.favorites.iter().position(|&fid| fid == id) {
-                    self.settings.favorites.remove(pos);
+                if let Some(pos) = self.preferences.favorites.iter().position(|&fid| fid == id) {
+                    self.preferences.favorites.remove(pos);
                 } else {
-                    self.settings.favorites.push(id);
+                    self.preferences.favorites.push(id);
                 }
                 self.invalidate_filter_cache();
-                return self.persist_settings();
+                return self.persist_preferences();
             }
             Message::ToggleBulkMode => {
                 self.bulk_mode = !self.bulk_mode;
@@ -752,11 +740,15 @@ impl Spotter {
                 let count = ids.len();
                 self.bulk_mode = false;
                 self.invalidate_filter_cache();
-                self.show_success(format!("{} games updated to {}", count, status));
+                self.show_success(tn(
+                    "toast_games_status",
+                    count,
+                    &[("status", &status.label())],
+                ));
                 return self.persist_games();
             }
             Message::BulkDelete => {
-                if self.settings.confirm_before_delete && !self.confirm_bulk_delete {
+                if self.preferences.confirm_before_delete && !self.confirm_bulk_delete {
                     self.confirm_bulk_delete = true;
                     return Task::none();
                 }
@@ -782,10 +774,7 @@ impl Spotter {
                 self.bulk_mode = false;
                 self.invalidate_filter_cache();
                 self.screen = Screen::Library;
-                self.show_success(format!(
-                    "{} games deleted. Click Undo to restore them.",
-                    count
-                ));
+                self.show_success(tn("toast_games_deleted", count, &[]));
                 return delay_task(8000, move || Message::PermanentDelete(delete_ids));
             }
             Message::ConfirmBulkDelete => {
@@ -846,8 +835,8 @@ impl Spotter {
         let content: Element<'_, Message> = if !self.data_loaded {
             container(
                 column![
-                    ui_text("Loading your library...", 18).color(Palette::TEXT_PRIMARY()),
-                    ui_text("Please wait", 12).color(Palette::TEXT_MUTED()),
+                    ui_text(t("loading_library"), 18).color(Palette::TEXT_PRIMARY()),
+                    ui_text(t("loading_wait"), 12).color(Palette::TEXT_MUTED()),
                 ]
                 .spacing(8)
                 .align_x(Alignment::Center),
@@ -865,7 +854,7 @@ impl Spotter {
                 Screen::Profile => views::profile::view(self),
                 Screen::Import => views::import::view(self),
                 Screen::AddGame => views::add_game::view(self),
-                Screen::Settings => views::settings::view(self),
+                Screen::Preferences => views::preferences::view(self),
             }
         };
 
@@ -886,24 +875,23 @@ impl Spotter {
 
         // Delete confirmation modal overlay
         if let Some(delete_id) = self.confirm_delete {
-            let game_title = self
+            let title = self
                 .games
                 .iter()
                 .find(|g| g.id == Some(delete_id))
-                .map(|g| g.title.clone())
-                .unwrap_or_else(|| "this game".to_string());
+                .map_or("", |g| g.title.as_str());
             layers.push(views::helpers::delete_modal(
-                "Delete Game",
-                format!("Are you sure you want to delete \"{}\"?", game_title),
-                "Delete".to_string(),
+                t("delete_game_title"),
+                tf("delete_game_question", &[("title", &title)]),
+                t("action_delete").to_owned(),
                 Message::DeleteGame(delete_id),
             ));
         } else if self.confirm_bulk_delete {
             let count = self.bulk_selected.len();
             layers.push(views::helpers::delete_modal(
-                "Bulk Delete",
-                format!("Are you sure you want to delete {} games?", count),
-                format!("Delete {}", count),
+                t("delete_games_title"),
+                tn("delete_games_question", count, &[]),
+                tf("action_delete_count", &[("count", &count)]),
                 Message::ConfirmBulkDelete,
             ));
         }
@@ -919,28 +907,37 @@ impl Spotter {
 
             let has_undo = !self.recently_deleted.is_empty();
 
-            let toast_content: Element<'_, Message> = if has_undo && !is_error {
-                let undo_btn = button(ui_text("Undo", 13))
-                    .on_press(Message::UndoDelete)
-                    .padding([4, 12])
-                    .style(crate::theme::outline_btn_style(Palette::ACCENT()));
-                row![ui_text(msg.clone(), 13).color(accent), undo_btn,]
-                    .spacing(12)
-                    .align_y(iced::Alignment::Center)
-                    .into()
-            } else {
-                ui_text(msg.clone(), 13).color(accent).into()
-            };
+            let mut toast_content = row![ui_text(msg.as_str(), 13).color(accent)]
+                .spacing(12)
+                .align_y(iced::Alignment::Center);
+            if has_undo && !is_error {
+                toast_content = toast_content.push(
+                    button(ui_text(t("action_undo"), 13))
+                        .on_press(Message::UndoDelete)
+                        .padding([4, 12])
+                        .style(crate::theme::outline_btn_style(Palette::ACCENT())),
+                );
+            }
+            toast_content = toast_content
+                .push(ui_text(colony_ui::widgets::icons::CLOSE, 12).color(Palette::TEXT_DIMMER()));
 
-            let toast = container(toast_content)
+            // A click anywhere on the toast dismisses it, as on every Colony
+            // toast; Undo is a button of its own inside it.
+            let toast = button(toast_content)
+                .on_press(Message::ToastTick(self.toast_id))
                 .padding([10, 16])
-                .style(crate::theme::card_style(
-                    Palette::BG_CARD(),
-                    accent.scale_alpha(0.4),
-                    10.0,
-                ));
+                .style(move |_: &Theme, _| button::Style {
+                    background: Some(Palette::BG_CARD().into()),
+                    text_color: Palette::TEXT_PRIMARY(),
+                    border: iced::Border {
+                        radius: 10.0.into(),
+                        color: accent.scale_alpha(0.4),
+                        width: 1.0,
+                    },
+                    ..button::Style::default()
+                });
 
-            let sidebar_w = self.settings.sidebar_width.clamp(160, 400) as f32 + 20.0;
+            let sidebar_w = self.preferences.sidebar_width.clamp(160, 400) as f32 + 20.0;
             let toast_positioned = container(toast)
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -1019,8 +1016,8 @@ impl Spotter {
             }
         }
 
-        if self.sort_order == SortOrder::FavoritesFirst && !self.settings.favorites.is_empty() {
-            let favorites = &self.settings.favorites;
+        if self.sort_order == SortOrder::FavoritesFirst && !self.preferences.favorites.is_empty() {
+            let favorites = &self.preferences.favorites;
             games.sort_by(|a, b| {
                 let a_fav = a.1.id.is_some_and(|id| favorites.contains(&id));
                 let b_fav = b.1.id.is_some_and(|id| favorites.contains(&id));
@@ -1110,8 +1107,8 @@ fn load_data() -> Result<LoadResult, String> {
     crate::keyring::init();
     let profile = crate::keyring::load_profile(&conn, &layout.credentials)?;
     let playtime = db::get_daily_playtime(&conn, 30)?;
-    let settings = crate::preferences::load(&layout.preferences, &conn)?;
-    Ok((games, profile, playtime, settings))
+    let prefs = crate::preferences::load(&layout.preferences, &conn)?;
+    Ok((games, profile, playtime, prefs))
 }
 
 pub fn run() -> iced::Result {
@@ -1140,18 +1137,18 @@ fn window_icon() -> Option<iced::window::Icon> {
 }
 
 fn boot() -> (Spotter, Task<Message>) {
-    // The saved theme and sizes from the first frame on. The full load reads
+    // The saved theme, sizes and language from the first frame on. The full load reads
     // the preferences again, and imports an older Spotter's if there are none.
-    let settings = crate::paths::layout()
+    let prefs = crate::paths::layout()
         .ok()
         .and_then(|layout| std::fs::read_to_string(&layout.preferences).ok())
         .and_then(|json| crate::preferences::parse(&json).ok())
         .unwrap_or_default();
-    settings.standard.apply();
+    prefs.apply();
     let load_task = spawn_task(load_data, |r| Message::DataLoaded(Box::new(r)));
     (
         Spotter {
-            settings,
+            preferences: prefs,
             ..Spotter::default()
         },
         load_task,

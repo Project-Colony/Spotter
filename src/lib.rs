@@ -13,6 +13,7 @@ mod app;
 mod epic;
 mod gog;
 mod handlers;
+mod i18n;
 mod images;
 mod messages;
 mod playstation;

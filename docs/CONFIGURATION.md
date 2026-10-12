@@ -1,40 +1,57 @@
 # Configuration
 
-All preferences are saved to `preferences.json` in Spotter's config folder (`~/.config/Colony/Spotter/preferences/preferences.json` on Linux; see [Data Storage](../README.md#data-storage) for the other platforms) and applied immediately on change.
+All preferences are saved to `preferences.json` in Spotter's config folder (`~/.config/Colony/Spotter/preferences/preferences.json` on Linux; see [Data Storage](../README.md#data-storage) for the other platforms) and applied immediately on change. There is no Save button.
 
-## Settings Overview
+## The Preferences page
+
+Clicking **Spotter** at the top of the sidebar opens Preferences in place of the current screen; clicking it again, the page's Close button or Esc goes back to that screen. The page is the shared Colony one (`colony_ui::widgets`): General, Appearance and Accessibility come first, then Spotter's own Library and Imports. Every section starts collapsed.
 
 ### General
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `default_status` | GameStatus | Unplayed | Default status for new games |
-| `default_platform` | Platform | Steam | Default platform for new games |
-| `confirm_before_delete` | bool | true | Show confirmation dialog before deleting a game |
+| `language` | `"en"`, `"fr"` or none | none | Interface language; none follows the system (`LC_ALL`, `LC_MESSAGES`, then `LANG`) |
 | `start_screen` | StartScreen | Library | Screen shown on launch (Library / Statistics / Import / Profile) |
-| `notifications_enabled` | bool | true | Show toast notifications for success messages |
-| `toast_duration` | ToastDuration | Normal (4s) | Auto-dismiss duration: Short (2s), Normal (4s), Long (8s) |
+| `notifications_enabled` | bool | true | Show toast notifications for success messages (errors always show) |
+| `toast_duration` | ToastDuration | Normal (4 s) | Auto-dismiss duration: Short (2 s), Normal (4 s), Long (8 s) |
 | `date_format` | DateFormat | YYYY-MM-DD | Date display: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY |
-| `default_sort_order` | SortOrder | Title A-Z | Default library sort |
-| `remember_filters` | bool | true | Persist filter selections across sessions |
-| `show_game_descriptions` | bool | false | Show store descriptions in library cards |
-| `achievements_display` | AchievementsDisplay | Full | Full list / Summary only / Hidden |
-| `download_covers_auto` | bool | true | Automatically download cover art on import |
 
-### Appearances
+### Appearance
+
+Theme, accent, text size, effects and a live preview come from the shared kit (see below). Spotter adds a Layout section:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
+| `sidebar_width` | u16 | 220 | Sidebar width in pixels (160-400, presets: 180/220/280) |
 | `compact_list` | bool | false | Reduced spacing in game list (4px vs 8px) |
 | `show_covers_in_list` | bool | true | Show cover thumbnails in library |
-| `sidebar_width` | u16 | 220 | Sidebar width in pixels (160-400, presets: 180/220/280) |
 
 ### Accessibility
+
+Vision, Motion and Reading come from the shared kit. Spotter adds Colour cues and Navigation:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `show_status_labels` | bool | true | Show text labels alongside status dots |
-| `large_click_targets` | bool | false | Increase button padding (8px → 12px) |
+| `large_click_targets` | bool | false | Increase button padding (8px to 12px) |
+
+### Library
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `default_status` | GameStatus | Unplayed | Default status for new games |
+| `default_platform` | Platform | Steam | Default platform for new games |
+| `default_sort_order` | SortOrder | Title A-Z | Default library sort |
+| `remember_filters` | bool | true | Persist filter selections across sessions |
+| `show_game_descriptions` | bool | false | Show store descriptions in library cards |
+| `achievements_display` | AchievementsDisplay | Full | Full list / Summary only / Hidden |
+| `confirm_before_delete` | bool | true | Show confirmation dialog before deleting a game |
+
+### Imports
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `download_covers_auto` | bool | true | Automatically download cover art on import |
 
 ### Shared Colony preferences
 
@@ -84,9 +101,15 @@ Reusable style functions in `theme.rs`:
 | `dot_style(color, size)` | Small circular indicator |
 | `pill_style(bg, border)` | Rounded status badge |
 
-## Settings Schema Versioning
+## Languages
 
-Preferences include a `version` field (currently `2`: the move to `preferences.json`), and `Settings` is `#[serde(default)]`, so a missing field takes its default.
+The interface ships in English and French. Spotter's own strings are in `src/i18n/en.json` and `src/i18n/fr.json`; the Preferences skeleton and the theme and accent names come from `colony_ui::i18n`. Views never hold text: they call `i18n::t(key)`, `i18n::tf(key, vars)` to fill `{name}` placeholders, or `i18n::tn(key, count, vars)` for a string that depends on a count (`key_one` and `key_other`; French also uses the singular for zero). Numbers with decimals and percentages go through `i18n::decimal` and `i18n::percent`, which follow the French typography (`12,5 %`).
+
+English is canonical: name a new key after its English meaning, write the English first, then the French in both files. `cargo test` fails when the two files hold different keys, when a string is empty or the placeholders differ, when a key is missing or unused, or when one repeats a shared colony-ui label. Platform, program and theme names are never translated. Game statuses are stored in the database by their English name (`GameStatus` `Display`) and shown through `GameStatus::label`.
+
+## Preferences Schema Versioning
+
+Preferences include a `version` field (currently `2`: the move to `preferences.json`), and `Preferences` is `#[serde(default)]`, so a missing field takes its default.
 
 `preferences::parse` also reads the file one field at a time when the whole struct does not parse: a value this build does not accept (for example one added by a newer version) falls back to that field's default, and every other preference keeps its stored value.
 

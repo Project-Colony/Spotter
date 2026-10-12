@@ -101,7 +101,7 @@ UserProfile {
 }
 ```
 
-### Settings
+### Preferences
 
 The user's preferences, saved to `preferences.json`, not to the database. See [CONFIGURATION.md](CONFIGURATION.md) for details.
 
@@ -199,7 +199,7 @@ Under `Colony/Spotter/` in the platform's config, data and cache folders (`colon
 ```
 <config>/
 ├── preferences/
-│   └── preferences.json        # Settings, with the shared Colony preferences
+│   └── preferences.json        # Preferences, with the shared Colony ones
 └── credentials/
     └── tokens.json             # Platform tokens, only when no OS keyring is usable
 

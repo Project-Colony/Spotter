@@ -3,6 +3,7 @@ use iced::widget::{button, column, container, row, space, stack};
 use iced::{Background, Border, Color, Element, Length, Theme};
 
 use crate::app::Message;
+use crate::i18n::t;
 use crate::theme::{self, ui_text};
 
 /// Small colored dot used as a platform indicator.
@@ -58,14 +59,13 @@ pub fn delete_modal<'a>(
                 .font(colony_ui::ui_font_bold())
                 .color(Palette::ERROR()),
             ui_text(question, 14).color(Palette::TEXT_PRIMARY()),
-            ui_text("You'll have 8 seconds to undo after deletion.", 12)
-                .color(Palette::TEXT_MUTED()),
+            ui_text(t("delete_undo_hint"), 12).color(Palette::TEXT_MUTED()),
             row![
                 button(ui_text(confirm_label, 14))
                     .on_press(on_confirm)
                     .padding([10, 24])
                     .style(theme::primary_btn_style(Palette::BTN_TRASH_HOVER())),
-                button(ui_text("Cancel", 14))
+                button(ui_text(t("action_cancel"), 14))
                     .on_press(Message::CancelDelete)
                     .padding([10, 24])
                     .style(theme::outline_btn_style(Palette::TEXT_SECONDARY())),

@@ -1,5 +1,5 @@
 //! The preferences file, `<config>/preferences/preferences.json` (see
-//! `crate::paths`): Spotter's [`Settings`], with the shared Colony
+//! `crate::paths`): Spotter's [`Preferences`], with the shared Colony
 //! preferences flattened in.
 
 use std::path::Path;
@@ -11,7 +11,7 @@ use serde_json::{Map, Value};
 
 use crate::db;
 use crate::error::SpotterError;
-use crate::models::{Settings, SETTINGS_VERSION};
+use crate::models::{Preferences, PREFERENCES_VERSION};
 
 /// Load the preferences. Without a preferences file, the settings an older
 /// Spotter saved in the library database are imported and written to it
@@ -19,27 +19,27 @@ use crate::models::{Settings, SETTINGS_VERSION};
 ///
 /// A file that is not JSON at all is an error: the app then refuses to save
 /// anything rather than replace it with the defaults.
-pub fn load(path: &Path, conn: &Connection) -> Result<Settings, SpotterError> {
+pub fn load(path: &Path, conn: &Connection) -> Result<Preferences, SpotterError> {
     match std::fs::read_to_string(path) {
         Ok(json) => parse(&json),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             let Some(row) = db::load_legacy_settings(conn)? else {
-                return Ok(Settings::default());
+                return Ok(Preferences::default());
             };
-            let settings = import_legacy(&row)?;
+            let prefs = import_legacy(&row)?;
             // The database row stays, so a failed write only means the
             // import runs again next time.
-            if let Err(e) = save(path, &settings) {
+            if let Err(e) = save(path, &prefs) {
                 eprintln!("[preferences] Could not write {:?}: {}", path, e);
             }
-            Ok(settings)
+            Ok(prefs)
         }
         Err(e) => Err(e.into()),
     }
 }
 
-pub fn save(path: &Path, settings: &Settings) -> Result<(), SpotterError> {
-    let json = serde_json::to_vec_pretty(settings)?;
+pub fn save(path: &Path, prefs: &Preferences) -> Result<(), SpotterError> {
+    let json = serde_json::to_vec_pretty(prefs)?;
     crate::paths::write_atomic(path, &json, false)?;
     Ok(())
 }
@@ -47,20 +47,20 @@ pub fn save(path: &Path, settings: &Settings) -> Result<(), SpotterError> {
 /// Parse saved preferences one field at a time: a field whose value this
 /// build does not accept (for example a value added by a newer version) keeps
 /// its default, so one bad value never discards the other preferences.
-pub fn parse(json: &str) -> Result<Settings, SpotterError> {
-    if let Ok(settings) = serde_json::from_str(json) {
-        return Ok(settings);
+pub fn parse(json: &str) -> Result<Preferences, SpotterError> {
+    if let Ok(prefs) = serde_json::from_str(json) {
+        return Ok(prefs);
     }
     let stored: Map<String, Value> = serde_json::from_str(json)?;
     let mut kept = Map::new();
     for (key, value) in stored {
         kept.insert(key.clone(), value);
-        if Settings::deserialize(&Value::Object(kept.clone())).is_err() {
+        if Preferences::deserialize(&Value::Object(kept.clone())).is_err() {
             eprintln!("[preferences] Ignoring invalid stored preference {:?}", key);
             kept.remove(&key);
         }
     }
-    Ok(Settings::deserialize(Value::Object(kept))?)
+    Ok(Preferences::deserialize(Value::Object(kept))?)
 }
 
 /// Turn the settings row of Spotter 0.3 and earlier into preferences. The
@@ -68,12 +68,12 @@ pub fn parse(json: &str) -> Result<Settings, SpotterError> {
 /// preferences: Spotter's own themes, accents and interface scale map to the
 /// closest shared theme, accent and text size. High contrast already has the
 /// shared name.
-fn import_legacy(json: &str) -> Result<Settings, SpotterError> {
-    let mut settings = parse(json)?;
-    settings.version = SETTINGS_VERSION;
+fn import_legacy(json: &str) -> Result<Preferences, SpotterError> {
+    let mut prefs = parse(json)?;
+    prefs.version = PREFERENCES_VERSION;
     let old: Value = serde_json::from_str(json)?;
     let field = |key: &str| old.get(key).and_then(Value::as_str);
-    let standard = &mut settings.standard;
+    let standard = &mut prefs.standard;
     if let Some((family, variant)) = field("theme_mode").and_then(legacy_theme) {
         standard.selected_theme = family.into();
         standard.selected_variant = variant.into();
@@ -84,7 +84,7 @@ fn import_legacy(json: &str) -> Result<Settings, SpotterError> {
     if let Some(size) = field("ui_scale").and_then(legacy_text_size) {
         standard.text_size_a11y = size;
     }
-    Ok(settings)
+    Ok(prefs)
 }
 
 /// The shared theme closest to each of Spotter's old dark themes, by
@@ -175,7 +175,7 @@ mod tests {
             .unwrap();
 
         let loaded = load(&dir.file(), &conn).unwrap();
-        assert_eq!(loaded.version, SETTINGS_VERSION);
+        assert_eq!(loaded.version, PREFERENCES_VERSION);
         assert_eq!(loaded.start_screen, StartScreen::Statistics);
         assert_eq!(loaded.favorites, [3, 7]);
         assert_eq!(loaded.sidebar_width, 280);
@@ -201,7 +201,7 @@ mod tests {
         assert_eq!(load(&dir.file(), &conn).unwrap(), loaded);
         // The old row was only read.
         let other = dir.0.join("other.json");
-        assert_eq!(load(&other, &conn).unwrap(), Settings::default());
+        assert_eq!(load(&other, &conn).unwrap(), Preferences::default());
     }
 
     #[test]
@@ -222,49 +222,52 @@ mod tests {
 
     #[test]
     fn a_legacy_row_with_unknown_values_keeps_the_rest() {
-        let settings = import_legacy(
+        let prefs = import_legacy(
             r#"{"theme_mode":"Oled","accent_color":42,"ui_scale":"Huge",
                 "default_status":"Bogus","compact_list":true}"#,
         )
         .unwrap();
-        assert_eq!(settings.standard, StandardPreferences::default());
-        assert_eq!(settings.default_status, Settings::default().default_status);
-        assert!(settings.compact_list);
+        assert_eq!(prefs.standard, StandardPreferences::default());
+        assert_eq!(prefs.default_status, Preferences::default().default_status);
+        assert!(prefs.compact_list);
     }
 
     #[test]
     fn a_fresh_install_has_the_defaults_and_writes_nothing() {
         let dir = Dir::new("fresh");
-        assert_eq!(load(&dir.file(), &dir.db()).unwrap(), Settings::default());
+        assert_eq!(
+            load(&dir.file(), &dir.db()).unwrap(),
+            Preferences::default()
+        );
         assert!(!dir.file().exists());
     }
 
     #[test]
     fn preferences_round_trip() {
         let dir = Dir::new("round_trip");
-        let mut settings = Settings::default();
-        settings.standard.selected_theme = "nord".into();
-        settings.standard.selected_accent = Some("amber".into());
-        settings.compact_list = true;
-        save(&dir.file(), &settings).unwrap();
-        assert_eq!(load(&dir.file(), &dir.db()).unwrap(), settings);
+        let mut prefs = Preferences::default();
+        prefs.standard.selected_theme = "nord".into();
+        prefs.standard.selected_accent = Some("amber".into());
+        prefs.compact_list = true;
+        save(&dir.file(), &prefs).unwrap();
+        assert_eq!(load(&dir.file(), &dir.db()).unwrap(), prefs);
     }
 
     #[test]
     fn one_bad_value_keeps_the_other_preferences() {
-        let settings =
+        let prefs =
             parse(r#"{"sidebar_width":"wide","compact_list":true,"selected_accent":"green"}"#)
                 .unwrap();
-        assert_eq!(settings.sidebar_width, Settings::default().sidebar_width);
-        assert!(settings.compact_list);
-        assert_eq!(settings.standard.selected_accent.as_deref(), Some("green"));
+        assert_eq!(prefs.sidebar_width, Preferences::default().sidebar_width);
+        assert!(prefs.compact_list);
+        assert_eq!(prefs.standard.selected_accent.as_deref(), Some("green"));
     }
 
     #[test]
     fn an_unknown_theme_still_loads_and_falls_back_to_the_default_palette() {
-        let settings =
+        let prefs =
             parse(r#"{"selected_theme":"removed_family","selected_variant":"dusk"}"#).unwrap();
-        let standard = &settings.standard;
+        let standard = &prefs.standard;
         assert_eq!(
             colony_ui::resolve(&standard.selected_theme, &standard.selected_variant),
             colony_ui::FALLBACK_PALETTE

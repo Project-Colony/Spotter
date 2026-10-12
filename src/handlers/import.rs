@@ -22,7 +22,13 @@ use iced::Task;
 
 use crate::app::{Message, Spotter};
 use crate::db;
+use crate::i18n::{t, tf};
 use crate::messages::AuthMessage;
+
+/// The import banner's line while an import of `platform` runs.
+fn importing_from(platform: &str) -> Result<String, String> {
+    Ok(tf("import_from", &[("platform", &platform)]))
+}
 
 impl Spotter {
     // ── Steam ──
@@ -32,7 +38,7 @@ impl Spotter {
             return Task::none();
         }
         self.steam_login_active = true;
-        self.import_status = "Opening Steam login in browser...".into();
+        self.import_status = Ok(t("import_steam_opening").into());
         super::super::app::spawn_task(crate::steam::auth::steam_login, |r| {
             Message::Auth(AuthMessage::SteamLoginComplete(r))
         })
@@ -46,13 +52,16 @@ impl Spotter {
         match result {
             Ok(steam_id) => {
                 self.profile.steam_id = steam_id.clone();
-                self.import_status = String::new();
-                self.show_success(format!("Steam ID detected: {}", steam_id));
+                self.import_status = Ok(String::new());
+                self.show_success(tf("toast_steam_id", &[("id", &steam_id)]));
                 self.save_profile_task()
             }
             Err(e) => {
-                self.import_status = String::new();
-                self.show_error(format!("Steam login failed: {}", e));
+                self.import_status = Ok(String::new());
+                self.show_error(tf(
+                    "error_login_failed",
+                    &[("platform", &"Steam"), ("error", &e)],
+                ));
                 Task::none()
             }
         }
@@ -60,17 +69,14 @@ impl Spotter {
 
     pub(crate) fn handle_import_steam(&mut self) -> Task<Message> {
         if self.profile.steam_api_key.is_empty() || self.profile.steam_id.is_empty() {
-            self.show_error("Steam API key and Steam ID are required. Use 'Login with Steam' to get your ID, then enter your API key.");
+            self.show_error(t("error_steam_setup"));
             return Task::none();
         }
         if self.importing.contains("Steam") {
             return Task::none();
         }
         self.importing.insert("Steam".into());
-        self.import_status = format!(
-            "Importing from Steam... ({} existing games)",
-            self.games.len()
-        );
+        self.import_status = importing_from("Steam");
         eprintln!("[app] Starting Steam import (id={})", self.profile.steam_id);
         let api_key = self.profile.steam_api_key.clone();
         let steam_id = self.profile.steam_id.clone();
@@ -97,7 +103,7 @@ impl Spotter {
         self.gog_login_active = true;
         self.gog_code_input.clear();
         if let Err(e) = crate::gog::auth::open_login_page() {
-            self.show_error(format!("Failed to open browser: {}", e));
+            self.show_error(tf("error_open_browser", &[("error", &e)]));
             self.gog_login_active = false;
         }
         Task::none()
@@ -108,11 +114,11 @@ impl Spotter {
         let code = match crate::gog::auth::extract_code(&input) {
             Some(c) => c,
             None => {
-                self.show_error("Please paste the URL or code from the browser");
+                self.show_error(t("error_gog_code"));
                 return Task::none();
             }
         };
-        self.import_status = "Exchanging GOG authorization code...".into();
+        self.import_status = Ok(tf("import_checking_login", &[("platform", &"GOG")]));
         super::super::app::spawn_task(
             move || crate::gog::auth::exchange_code(&code),
             |r| Message::Auth(AuthMessage::GogLoginComplete(r)),
@@ -129,13 +135,16 @@ impl Spotter {
             Ok((access_token, refresh_token)) => {
                 self.profile.gog_token = access_token;
                 self.profile.gog_refresh_token = refresh_token;
-                self.import_status = String::new();
-                self.show_success("GOG login successful!");
+                self.import_status = Ok(String::new());
+                self.show_success(tf("toast_logged_in", &[("platform", &"GOG")]));
                 self.save_profile_task()
             }
             Err(e) => {
-                self.import_status = String::new();
-                self.show_error(format!("GOG login failed: {}", e));
+                self.import_status = Ok(String::new());
+                self.show_error(tf(
+                    "error_login_failed",
+                    &[("platform", &"GOG"), ("error", &e)],
+                ));
                 Task::none()
             }
         }
@@ -143,14 +152,14 @@ impl Spotter {
 
     pub(crate) fn handle_import_gog(&mut self) -> Task<Message> {
         if self.profile.gog_token.is_empty() {
-            self.show_error("Please login with GOG first");
+            self.show_error(tf("error_login_first", &[("platform", &"GOG")]));
             return Task::none();
         }
         if self.importing.contains("GOG") {
             return Task::none();
         }
         self.importing.insert("GOG".into());
-        self.import_status = "Importing from GOG...".into();
+        self.import_status = importing_from("GOG");
         let token = self.profile.gog_token.clone();
         let refresh = self.profile.gog_refresh_token.clone();
         super::super::app::spawn_task(
@@ -195,7 +204,7 @@ impl Spotter {
         self.epic_login_active = true;
         self.epic_code_input.clear();
         if let Err(e) = crate::epic::auth::open_login_page() {
-            self.show_error(format!("Failed to open browser: {}", e));
+            self.show_error(tf("error_open_browser", &[("error", &e)]));
             self.epic_login_active = false;
         }
         Task::none()
@@ -206,13 +215,11 @@ impl Spotter {
         let code = match crate::epic::auth::extract_code(&input) {
             Some(c) => c,
             None => {
-                self.show_error(
-                    "Please paste the JSON response or authorization code from the browser",
-                );
+                self.show_error(t("error_epic_code"));
                 return Task::none();
             }
         };
-        self.import_status = "Exchanging Epic authorization code...".into();
+        self.import_status = Ok(tf("import_checking_login", &[("platform", &"Epic Games")]));
         super::super::app::spawn_task(
             move || crate::epic::auth::exchange_code(&code),
             |r| Message::Auth(AuthMessage::EpicLoginComplete(r)),
@@ -233,18 +240,20 @@ impl Spotter {
                 if !display_name.is_empty() {
                     self.profile.epic_display_name = display_name.clone();
                 }
-                self.import_status = String::new();
-                let name = if display_name.is_empty() {
-                    "account linked".to_string()
+                self.import_status = Ok(String::new());
+                self.show_success(if display_name.is_empty() {
+                    tf("toast_logged_in", &[("platform", &"Epic Games")])
                 } else {
-                    display_name
-                };
-                self.show_success(format!("Epic Games login successful: {}", name));
+                    tf("toast_epic_logged_in", &[("name", &display_name)])
+                });
                 self.save_profile_task()
             }
             Err(e) => {
-                self.import_status = String::new();
-                self.show_error(format!("Epic login failed: {}", e));
+                self.import_status = Ok(String::new());
+                self.show_error(tf(
+                    "error_login_failed",
+                    &[("platform", &"Epic Games"), ("error", &e)],
+                ));
                 Task::none()
             }
         }
@@ -258,7 +267,7 @@ impl Spotter {
 
         // If user is logged in with Epic account, use online import
         if !self.profile.epic_token.is_empty() && !self.profile.epic_account_id.is_empty() {
-            self.import_status = "Importing from Epic Games account...".into();
+            self.import_status = importing_from("Epic Games");
             let token = self.profile.epic_token.clone();
             let account_id = self.profile.epic_account_id.clone();
             let refresh = self.profile.epic_refresh_token.clone();
@@ -268,7 +277,7 @@ impl Spotter {
             )
         } else {
             // Fallback to local scanning
-            self.import_status = "Scanning Epic Games Launcher...".into();
+            self.import_status = Ok(t("import_epic_scan").into());
             super::super::app::spawn_task(
                 || crate::epic::full_import_local().map(|games| (games, None)),
                 Message::EpicImportComplete,
@@ -356,16 +365,14 @@ impl Spotter {
 
     pub(crate) fn handle_import_xbox(&mut self) -> Task<Message> {
         if self.profile.xbox_api_key.is_empty() {
-            self.show_error(
-                "Xbox API key is required. Get one at xbl.io and configure it in Profile.",
-            );
+            self.show_error(t("error_xbox_key"));
             return Task::none();
         }
         if self.importing.contains("Xbox") {
             return Task::none();
         }
         self.importing.insert("Xbox".into());
-        self.import_status = "Importing from Xbox Live...".into();
+        self.import_status = importing_from("Xbox Live");
         let api_key = self.profile.xbox_api_key.clone();
         super::super::app::spawn_task(
             move || crate::xbox::full_import(&api_key),
@@ -400,14 +407,14 @@ impl Spotter {
 
     pub(crate) fn handle_import_playstation(&mut self) -> Task<Message> {
         if self.profile.psn_npsso.is_empty() {
-            self.show_error("PSN NPSSO token is required. Get it from the PlayStation website.");
+            self.show_error(t("error_psn_token"));
             return Task::none();
         }
         if self.importing.contains("PlayStation") {
             return Task::none();
         }
         self.importing.insert("PlayStation".into());
-        self.import_status = "Importing from PlayStation Network...".into();
+        self.import_status = importing_from("PlayStation Network");
         let npsso = self.profile.psn_npsso.clone();
         super::super::app::spawn_task(
             move || crate::playstation::full_import(&npsso),
@@ -422,7 +429,7 @@ impl Spotter {
             return Task::none();
         }
         self.importing.insert("JSON".into());
-        self.import_status = "Importing from JSON backup...".into();
+        self.import_status = Ok(t("import_json").into());
         super::super::app::spawn_task(
             || db::import_games_json().map_err(Into::into),
             Message::ImportJsonComplete,

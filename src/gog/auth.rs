@@ -82,7 +82,7 @@ pub fn exchange_code(code: &str) -> Result<(String, String), String> {
 /// Returns (new_access_token, new_refresh_token).
 pub fn refresh_token(refresh: &str) -> Result<(String, String), String> {
     if refresh.is_empty() {
-        return Err("No refresh token available. Please login again.".into());
+        return Err(crate::i18n::t("error_login_expired").into());
     }
 
     let response = post_token(&[("grant_type", "refresh_token"), ("refresh_token", refresh)])

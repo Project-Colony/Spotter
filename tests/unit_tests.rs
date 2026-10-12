@@ -227,11 +227,11 @@ fn game_status_display_format() {
     assert_eq!(format!("{}", GameStatus::Dropped), "Dropped");
 }
 
-// ───── Settings tests ─────
+// ───── Preferences tests ─────
 
 #[test]
-fn settings_default_values() {
-    let s = spotter::models::Settings::default();
+fn preferences_default_values() {
+    let s = spotter::models::Preferences::default();
     assert_eq!(s.default_status, spotter::models::GameStatus::Unplayed);
     assert_eq!(s.default_platform, spotter::models::Platform::Steam);
     assert!(s.confirm_before_delete);
@@ -247,10 +247,10 @@ fn settings_default_values() {
 }
 
 #[test]
-fn settings_serde_roundtrip() {
-    let original = spotter::models::Settings::default();
+fn preferences_serde_roundtrip() {
+    let original = spotter::models::Preferences::default();
     let json = serde_json::to_string(&original).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed, original);
 }
 
@@ -407,7 +407,7 @@ fn error_converts_to_string() {
     assert_eq!(s, "Import error: no games found");
 }
 
-// ───── Settings versioning tests ─────
+// ───── Preferences versioning tests ─────
 
 #[test]
 fn preferences_unknown_value_falls_back_per_field() {
@@ -444,25 +444,25 @@ fn preferences_unreadable_json_is_an_error() {
 }
 
 #[test]
-fn settings_default_has_version() {
-    let s = spotter::models::Settings::default();
-    assert_eq!(s.version, spotter::models::SETTINGS_VERSION);
+fn preferences_default_has_version() {
+    let s = spotter::models::Preferences::default();
+    assert_eq!(s.version, spotter::models::PREFERENCES_VERSION);
 }
 
 #[test]
-fn settings_version_survives_serialization() {
-    let original = spotter::models::Settings::default();
+fn preferences_version_survives_serialization() {
+    let original = spotter::models::Preferences::default();
     let json = serde_json::to_string(&original).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.version, spotter::models::SETTINGS_VERSION);
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed.version, spotter::models::PREFERENCES_VERSION);
 }
 
 #[test]
-fn settings_without_version_gets_default() {
+fn preferences_without_version_gets_default() {
     // Simulate old settings JSON without version field
     let json = r#"{"default_status":"Unplayed","default_platform":"Steam","confirm_before_delete":true,"start_screen":"Library","theme_mode":"Dark","accent_color":"Blue","compact_list":false,"show_covers_in_list":true,"ui_scale":"Normal","sidebar_width":220,"high_contrast":false,"show_status_labels":true,"large_click_targets":false}"#;
-    let parsed: spotter::models::Settings = serde_json::from_str(json).unwrap();
-    assert_eq!(parsed.version, spotter::models::SETTINGS_VERSION);
+    let parsed: spotter::models::Preferences = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.version, spotter::models::PREFERENCES_VERSION);
 }
 
 // ───── CSV export test ─────
@@ -789,32 +789,32 @@ fn game_status_colors_are_distinct_shared_accents() {
     }
 }
 
-// ───── Settings favorites serialization ─────
+// ───── Preferences favorites serialization ─────
 
 #[test]
-fn settings_favorites_serde_roundtrip() {
-    let settings = spotter::models::Settings {
+fn preferences_favorites_serde_roundtrip() {
+    let prefs = spotter::models::Preferences {
         favorites: vec![1, 42, 100],
         ..Default::default()
     };
-    let json = serde_json::to_string(&settings).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
+    let json = serde_json::to_string(&prefs).unwrap();
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.favorites, vec![1, 42, 100]);
 }
 
 #[test]
-fn settings_favorites_default_empty() {
-    let settings = spotter::models::Settings::default();
-    assert!(settings.favorites.is_empty());
+fn preferences_favorites_default_empty() {
+    let prefs = spotter::models::Preferences::default();
+    assert!(prefs.favorites.is_empty());
 }
 
-// ───── SortOrder FavoritesFirst display ─────
+// ───── SortOrder FavoritesFirst label ─────
 
 #[test]
-fn sort_order_favorites_first_display() {
+fn sort_order_favorites_first_label() {
     assert_eq!(
-        format!("{}", spotter::models::SortOrder::FavoritesFirst),
-        "Favorites"
+        spotter::models::SortOrder::FavoritesFirst.label(),
+        "Favorites first"
     );
 }
 

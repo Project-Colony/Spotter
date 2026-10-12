@@ -7,9 +7,10 @@ A cross-platform game library tracker and statistics dashboard built with [Rust]
 - **Multi-platform imports** - Steam, GOG, Epic Games, Xbox (via OpenXBL), and PlayStation Network
 - **Achievement tracking** - view and track achievements with icons, descriptions, and unlock dates
 - **Statistics dashboard** - playtime charts, status/platform distribution, most played games
-- **Customizable UI** - dark/darker/midnight themes, accent colors, UI scaling, sidebar width, compact mode
-- **Accessibility** - high contrast mode, large click targets, status label toggles
-- **Settings** - date format, notification preferences, toast duration, start screen, default status/platform
+- **Customizable UI** - the shared Colony themes and accents, two text sizes, sidebar width, compact mode
+- **Accessibility** - high contrast, a dyslexia-friendly font, reduced motion, large click targets, status labels
+- **Preferences** - language, date format, notifications, start screen, default status/platform
+- **English and French** - the interface follows the system language, or the one picked in Preferences
 - **Local-first** - all data stored in a local SQLite database, no cloud dependency
 
 ## Running the binaries
@@ -81,7 +82,8 @@ src/
   paths.rs         Where Spotter's files live, and the copy from Spotter 0.3
   preferences.rs   preferences.json: load, save, import from Spotter 0.3
   keyring.rs       Platform tokens in the OS keyring
-  models.rs        Data structures (Game, Platform, Settings, etc.)
+  models.rs        Data structures (Game, Platform, Preferences, etc.)
+  i18n/            Interface strings: en.json, fr.json and the lookup
   theme.rs         Icons and style helpers on the Colony palette
   steam.rs         Steam import + HTML scraping
   steam_auth.rs    Steam browser login flow
@@ -90,7 +92,7 @@ src/
   xbox.rs          Xbox Live import via OpenXBL
   playstation.rs   PSN import via trophy API
   images.rs        Cover art + achievement icon caching
-  views/           UI views (library, detail, stats, settings, etc.)
+  views/           UI views (library, detail, stats, preferences, etc.)
 tests/
   unit_tests.rs    Unit + integration tests
 ```
@@ -136,7 +138,7 @@ Spotter has no telemetry, no analytics and no update check, and sends nothing to
   - Xbox: `xbl.io` (your OpenXBL API key).
   - PlayStation: `ca.account.sony.com` (your NPSSO token, exchanged for an access token), then `m.np.playstation.com` with that token.
 - **Steam login**, when you use it: Spotter opens Steam's sign-in page in your browser, receives the answer on a local port of your own computer (127.0.0.1) and asks `steamcommunity.com` to confirm it.
-- **Cover art and achievement icons**, downloaded from the image addresses stored with each game, which come from those platforms (or from a JSON backup you import): covers after an import, unless you turn off automatic cover downloads in Settings; achievement icons when you open a Steam game's page.
+- **Cover art and achievement icons**, downloaded from the image addresses stored with each game, which come from those platforms (or from a JSON backup you import): covers after an import, unless you turn off automatic cover downloads in Preferences; achievement icons when you open a Steam game's page.
 - **At startup**, if you have connected GOG or Epic Games, Spotter renews that login automatically by sending the saved refresh token to `auth.gog.com` or `account-public-service-prod.ol.epicgames.com`.
 
 Links such as a game's store page open in your browser; Spotter itself sends nothing for them.

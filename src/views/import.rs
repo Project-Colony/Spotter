@@ -5,19 +5,25 @@ use iced::{Background, Border, Color, Element, Length, Theme};
 
 use super::helpers::{platform_dot, separator, status_badge};
 use crate::app::{Message, Spotter};
+use crate::i18n::{t, tf, tn};
 use crate::messages::AuthMessage;
 use crate::models::Platform;
 use crate::theme::{self, ui_text};
+
+/// Where Steam hands out Web API keys.
+const STEAM_KEY_PAGE: &str = "steamcommunity.com/dev/apikey";
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let accent = Palette::ACCENT();
 
     let header = column![
-        ui_text(format!("{} Import Games", theme::icons::IMPORT), 24)
-            .font(colony_ui::ui_font_bold())
-            .color(Palette::TEXT_PRIMARY()),
-        ui_text("Import your game library from Steam, GOG, and more", 12)
-            .color(Palette::TEXT_MUTED()),
+        ui_text(
+            format!("{} {}", theme::icons::IMPORT, t("import_title")),
+            24
+        )
+        .font(colony_ui::ui_font_bold())
+        .color(Palette::TEXT_PRIMARY()),
+        ui_text(t("import_subtitle"), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -72,7 +78,12 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
 fn import_status_banner<'a>(app: &'a Spotter) -> Element<'a, Message> {
     let any_importing = !app.importing.is_empty();
 
-    if !any_importing && app.import_status.is_empty() {
+    let status = match &app.import_status {
+        Ok(text) if text.is_empty() => None,
+        Ok(text) => Some((text, false)),
+        Err(text) => Some((text, true)),
+    };
+    if !any_importing && status.is_none() {
         return column![].into();
     }
 
@@ -80,13 +91,16 @@ fn import_status_banner<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     if any_importing {
         let platforms: Vec<&String> = app.importing.iter().collect();
-        let label = format!(
-            "Importing from {}...",
-            platforms
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
+        let label = tf(
+            "import_from",
+            &[(
+                "platform",
+                &platforms
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )],
         );
         // The dots move between frames: an animation, so still without effects.
         let phase = std::time::SystemTime::now()
@@ -110,12 +124,11 @@ fn import_status_banner<'a>(app: &'a Spotter) -> Element<'a, Message> {
         );
     }
 
-    if !app.import_status.is_empty() && !any_importing {
-        let is_error = app.import_status.contains("error") || app.import_status.contains("Error");
+    if let Some((text, is_error)) = status.filter(|_| !any_importing) {
         let (icon, color) = if is_error {
-            ("!", Palette::ERROR())
+            (theme::icons::TIMES, Palette::ERROR())
         } else {
-            ("OK", Palette::SUCCESS())
+            (theme::icons::CHECK, Palette::SUCCESS())
         };
         let badge = container(ui_text(icon, 11).color(Palette::TEXT_PRIMARY()))
             .padding([2, 8])
@@ -124,7 +137,7 @@ fn import_status_banner<'a>(app: &'a Spotter) -> Element<'a, Message> {
                 color.scale_alpha(0.4),
             ));
         content = content.push(
-            row![badge, ui_text(&app.import_status, 13).color(color)]
+            row![badge, ui_text(text.as_str(), 13).color(color)]
                 .spacing(10)
                 .align_y(iced::Alignment::Center),
         );
@@ -154,16 +167,16 @@ fn steam_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Header row: platform dot + title + status pill
     let status_pill = if ready {
-        status_badge("Ready", Palette::SUCCESS())
+        status_badge(t("import_ready"), Palette::SUCCESS())
     } else if has_steam_id {
-        status_badge("API key needed", Palette::WARNING())
+        status_badge(t("import_key_needed"), Palette::WARNING())
     } else {
-        status_badge("Setup required", Palette::ERROR())
+        status_badge(t("import_setup_needed"), Palette::ERROR())
     };
 
     let header_row = row![
         platform_dot(color),
-        ui_text("Steam", 18).color(color),
+        ui_text(Platform::Steam.store_name(), 18).color(color),
         space::horizontal(),
         status_pill,
     ]
@@ -171,55 +184,58 @@ fn steam_setup_card(app: &Spotter) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     // Step 1: Login
-    let step1_label = step_label("1", "Login", color);
+    let step1_label = step_label("1", t("import_step_login"), color);
     let login_status: Element<'_, Message> = if has_steam_id {
         row![
-            ui_text("ID: ", 12).color(Palette::TEXT_MUTED()),
+            ui_text(t("import_steam_id"), 12).color(Palette::TEXT_MUTED()),
             ui_text(&app.profile.steam_id, 12).color(Palette::SUCCESS()),
         ]
         .spacing(4)
         .into()
     } else {
-        ui_text("Not logged in", 12)
+        ui_text(t("import_not_logged_in"), 12)
             .color(Palette::TEXT_DIM())
             .into()
     };
 
     let login_btn = if app.steam_login_active {
-        button(ui_text("Waiting...", 12).color(Palette::WARNING()))
+        button(ui_text(t("import_waiting"), 12).color(Palette::WARNING()))
             .padding([6, 14])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Login", 12))
+        button(ui_text(t("import_login"), 12))
             .on_press(AuthMessage::SteamLogin.into())
             .padding([6, 14])
             .style(theme::primary_btn_style(color))
     };
 
     // Step 2: API Key
-    let step2_label = step_label("2", "API Key", color);
+    let step2_label = step_label("2", t("import_step_api_key"), color);
     let api_key_input = column![
-        text_input("Steam Web API key", &app.profile.steam_api_key)
-            .on_input(Message::UpdateSteamApiKey)
-            .padding(8)
-            .size(sz(12))
-            .font(ui_font()),
-        ui_text("steamcommunity.com/dev/apikey", 10).color(Palette::TEXT_DIM()),
+        text_input(
+            t("import_steam_key_placeholder"),
+            &app.profile.steam_api_key
+        )
+        .on_input(Message::UpdateSteamApiKey)
+        .padding(8)
+        .size(sz(12))
+        .font(ui_font()),
+        ui_text(STEAM_KEY_PAGE, 10).color(Palette::TEXT_DIM()),
     ]
     .spacing(4);
 
     // Import button
     let import_btn = if ready && !steam_importing {
-        button(ui_text("Import Steam", 13))
+        button(ui_text(import_label(Platform::Steam), 13))
             .on_press(Message::ImportSteam)
             .padding([8, 18])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else if steam_importing {
-        button(ui_text("Importing...", 13).color(Palette::WARNING()))
+        button(ui_text(t("import_importing"), 13).color(Palette::WARNING()))
             .padding([8, 18])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Import Steam", 13).color(Palette::TEXT_DIMMER()))
+        button(ui_text(import_label(Platform::Steam), 13).color(Palette::TEXT_DIMMER()))
             .padding([8, 18])
             .style(theme::disabled_btn_style())
     };
@@ -254,16 +270,16 @@ fn gog_setup_card(app: &Spotter) -> Element<'_, Message> {
     let gog_importing = app.importing.contains("GOG");
 
     let status_pill = if has_token {
-        status_badge("Ready", Palette::SUCCESS())
+        status_badge(t("import_ready"), Palette::SUCCESS())
     } else if app.gog_login_active {
-        status_badge("Logging in...", Palette::WARNING())
+        status_badge(t("import_logging_in"), Palette::WARNING())
     } else {
-        status_badge("Setup required", Palette::ERROR())
+        status_badge(t("import_setup_needed"), Palette::ERROR())
     };
 
     let header_row = row![
         platform_dot(color),
-        ui_text("GOG Galaxy", 18).color(color),
+        ui_text(Platform::Gog.store_name(), 18).color(color),
         space::horizontal(),
         status_pill,
     ]
@@ -271,25 +287,27 @@ fn gog_setup_card(app: &Spotter) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     // Step 1: Login
-    let step1_label = step_label("1", "Login", color);
+    let step1_label = step_label("1", t("import_step_login"), color);
     let login_status: Element<'_, Message> = if has_token {
-        ui_text("Logged in", 12).color(Palette::SUCCESS()).into()
+        ui_text(t("import_logged_in"), 12)
+            .color(Palette::SUCCESS())
+            .into()
     } else if app.gog_login_active {
-        ui_text("Waiting for login...", 12)
+        ui_text(t("import_waiting_login"), 12)
             .color(Palette::WARNING())
             .into()
     } else {
-        ui_text("Not logged in", 12)
+        ui_text(t("import_not_logged_in"), 12)
             .color(Palette::TEXT_DIM())
             .into()
     };
 
     let login_btn = if app.gog_login_active {
-        button(ui_text("Waiting...", 12).color(Palette::WARNING()))
+        button(ui_text(t("import_waiting"), 12).color(Palette::WARNING()))
             .padding([6, 14])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Login", 12))
+        button(ui_text(t("import_login"), 12))
             .on_press(AuthMessage::GogLogin.into())
             .padding([6, 14])
             .style(theme::primary_btn_style(color))
@@ -297,14 +315,14 @@ fn gog_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Step 2: Paste code
     let code_section: Element<'_, Message> = if app.gog_login_active || !has_token {
-        let step2_label = step_label("2", "Paste URL", color);
+        let step2_label = step_label("2", t("import_step_paste_address"), color);
         let submit_btn = if !app.gog_code_input.is_empty() {
-            button(ui_text("Complete", 12))
+            button(ui_text(t("import_finish_login"), 12))
                 .on_press(AuthMessage::GogSubmitCode.into())
                 .padding([6, 14])
                 .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
         } else {
-            button(ui_text("Complete", 12).color(Palette::TEXT_DIMMER()))
+            button(ui_text(t("import_finish_login"), 12).color(Palette::TEXT_DIMMER()))
                 .padding([6, 14])
                 .style(theme::disabled_btn_style())
         };
@@ -312,8 +330,8 @@ fn gog_setup_card(app: &Spotter) -> Element<'_, Message> {
         column![
             separator(color),
             step2_label,
-            ui_text("Copy the redirect URL after signing in", 10).color(Palette::TEXT_DIM()),
-            text_input("Paste redirect URL here...", &app.gog_code_input,)
+            ui_text(t("import_gog_hint"), 10).color(Palette::TEXT_DIM()),
+            text_input(t("import_gog_placeholder"), &app.gog_code_input,)
                 .on_input(|s| AuthMessage::GogCodeChanged(s).into())
                 .padding(8)
                 .size(sz(12))
@@ -328,16 +346,16 @@ fn gog_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Import button
     let import_btn = if has_token && !gog_importing {
-        button(ui_text("Import GOG", 13))
+        button(ui_text(import_label(Platform::Gog), 13))
             .on_press(Message::ImportGog)
             .padding([8, 18])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else if gog_importing {
-        button(ui_text("Importing...", 13).color(Palette::WARNING()))
+        button(ui_text(t("import_importing"), 13).color(Palette::WARNING()))
             .padding([8, 18])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Import GOG", 13).color(Palette::TEXT_DIMMER()))
+        button(ui_text(import_label(Platform::Gog), 13).color(Palette::TEXT_DIMMER()))
             .padding([8, 18])
             .style(theme::disabled_btn_style())
     };
@@ -372,16 +390,16 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
     let epic_importing = app.importing.contains("Epic");
 
     let status_pill = if logged_in {
-        status_badge("Connected", Palette::SUCCESS())
+        status_badge(t("import_connected"), Palette::SUCCESS())
     } else if app.epic_login_active {
-        status_badge("Logging in...", Palette::WARNING())
+        status_badge(t("import_logging_in"), Palette::WARNING())
     } else {
-        status_badge("Local only", Palette::WARNING())
+        status_badge(t("import_local_only"), Palette::WARNING())
     };
 
     let header_row = row![
         platform_dot(color),
-        ui_text("Epic Games", 18).color(color),
+        ui_text(Platform::Epic.store_name(), 18).color(color),
         space::horizontal(),
         status_pill,
     ]
@@ -389,7 +407,7 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     // Step 1: Login
-    let step1_label = step_label("1", "Login", color);
+    let step1_label = step_label("1", t("import_step_login"), color);
     let login_status: Element<'_, Message> = if logged_in {
         let name = if app.profile.epic_display_name.is_empty() {
             app.profile
@@ -402,35 +420,32 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
             app.profile.epic_display_name.clone()
         };
         row![
-            ui_text("Account: ", 12).color(Palette::TEXT_MUTED()),
+            ui_text(t("import_account"), 12).color(Palette::TEXT_MUTED()),
             ui_text(name, 12).color(Palette::SUCCESS()),
         ]
         .spacing(4)
         .into()
     } else if app.epic_login_active {
-        ui_text("Waiting for login...", 12)
+        ui_text(t("import_waiting_login"), 12)
             .color(Palette::WARNING())
             .into()
     } else {
-        ui_text(
-            "Optional: without login, only installed games are detected",
-            12,
-        )
-        .color(Palette::TEXT_DIM())
-        .into()
+        ui_text(t("import_epic_optional"), 12)
+            .color(Palette::TEXT_DIM())
+            .into()
     };
 
     let login_btn = if app.epic_login_active {
-        button(ui_text("Waiting...", 12).color(Palette::WARNING()))
+        button(ui_text(t("import_waiting"), 12).color(Palette::WARNING()))
             .padding([6, 14])
             .style(theme::loading_btn_style())
     } else if logged_in {
-        button(ui_text("Re-login", 12))
+        button(ui_text(t("import_login_again"), 12))
             .on_press(AuthMessage::EpicLogin.into())
             .padding([6, 14])
             .style(theme::primary_btn_style(color))
     } else {
-        button(ui_text("Login", 12))
+        button(ui_text(t("import_login"), 12))
             .on_press(AuthMessage::EpicLogin.into())
             .padding([6, 14])
             .style(theme::primary_btn_style(color))
@@ -438,14 +453,14 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Step 2: Paste code (only shown when login is active or not logged in)
     let code_section: Element<'_, Message> = if app.epic_login_active || !logged_in {
-        let step2_label = step_label("2", "Paste Code", color);
+        let step2_label = step_label("2", t("import_step_paste_code"), color);
         let submit_btn = if !app.epic_code_input.is_empty() {
-            button(ui_text("Complete", 12))
+            button(ui_text(t("import_finish_login"), 12))
                 .on_press(AuthMessage::EpicSubmitCode.into())
                 .padding([6, 14])
                 .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
         } else {
-            button(ui_text("Complete", 12).color(Palette::TEXT_DIMMER()))
+            button(ui_text(t("import_finish_login"), 12).color(Palette::TEXT_DIMMER()))
                 .padding([6, 14])
                 .style(theme::disabled_btn_style())
         };
@@ -453,19 +468,12 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
         column![
             separator(color),
             step2_label,
-            ui_text(
-                "Copy the JSON response (or authorization code) from the browser page",
-                10
-            )
-            .color(Palette::TEXT_DIM()),
-            text_input(
-                "Paste JSON or authorization code here...",
-                &app.epic_code_input
-            )
-            .on_input(|s| AuthMessage::EpicCodeChanged(s).into())
-            .padding(8)
-            .size(sz(12))
-            .font(ui_font()),
+            ui_text(t("import_epic_hint"), 10).color(Palette::TEXT_DIM()),
+            text_input(t("import_epic_placeholder"), &app.epic_code_input)
+                .on_input(|s| AuthMessage::EpicCodeChanged(s).into())
+                .padding(8)
+                .size(sz(12))
+                .font(ui_font()),
             submit_btn,
         ]
         .spacing(6)
@@ -475,11 +483,11 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
     };
 
     // Import button
-    let import_label = if logged_in {
-        "Import Full Library"
+    let import_label = t(if logged_in {
+        "import_epic_full"
     } else {
-        "Import Local Games"
-    };
+        "import_epic_local"
+    });
 
     let import_btn = if !epic_importing {
         button(ui_text(import_label, 13))
@@ -491,23 +499,20 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
                 color
             }))
     } else {
-        button(ui_text("Importing...", 13).color(Palette::WARNING()))
+        button(ui_text(t("import_importing"), 13).color(Palette::WARNING()))
             .padding([8, 18])
             .style(theme::loading_btn_style())
     };
 
-    let import_note: Element<'_, Message> = if logged_in {
-        ui_text("Full library import via Epic account (all owned games)", 10)
-            .color(Palette::TEXT_DIM())
-            .into()
-    } else {
-        ui_text(
-            "Local scan only (installed games). Login for full library.",
-            10,
-        )
-        .color(Palette::TEXT_DIM())
-        .into()
-    };
+    let import_note = ui_text(
+        t(if logged_in {
+            "import_epic_full_note"
+        } else {
+            "import_epic_local_note"
+        }),
+        10,
+    )
+    .color(Palette::TEXT_DIM());
 
     let card_content = column![
         header_row,
@@ -539,16 +544,16 @@ fn xbox_setup_card(app: &Spotter) -> Element<'_, Message> {
     let xbox_importing = app.importing.contains("Xbox");
 
     let status_pill = if xbox_importing {
-        status_badge("Importing...", Palette::WARNING())
+        status_badge(t("import_importing"), Palette::WARNING())
     } else if has_key {
-        status_badge("Ready", Palette::SUCCESS())
+        status_badge(t("import_ready"), Palette::SUCCESS())
     } else {
-        status_badge("Setup required", Palette::ERROR())
+        status_badge(t("import_setup_needed"), Palette::ERROR())
     };
 
     let header_row = row![
         platform_dot(color),
-        ui_text("Xbox", 18).color(color),
+        ui_text(Platform::Xbox.store_name(), 18).color(color),
         space::horizontal(),
         status_pill,
     ]
@@ -556,17 +561,14 @@ fn xbox_setup_card(app: &Spotter) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     // Step 1: API Key
-    let step1_label = step_label("1", "API Key", color);
+    let step1_label = step_label("1", t("import_step_api_key"), color);
     let api_key_input = column![
-        text_input(
-            "Enter your OpenXBL API key from xbl.io",
-            &app.profile.xbox_api_key
-        )
-        .on_input(Message::UpdateXboxApiKey)
-        .padding(8)
-        .size(sz(12))
-        .font(ui_font()),
-        button(ui_text("Get a free API key at xbl.io", 10).color(Palette::ACCENT()),)
+        text_input(t("import_xbox_key_placeholder"), &app.profile.xbox_api_key)
+            .on_input(Message::UpdateXboxApiKey)
+            .padding(8)
+            .size(sz(12))
+            .font(ui_font()),
+        button(ui_text(t("import_xbox_key_link"), 10).color(Palette::ACCENT()),)
             .on_press(Message::OpenUrl("https://xbl.io".to_string()))
             .padding(0)
             .style(theme::transparent_btn_style()),
@@ -575,15 +577,18 @@ fn xbox_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Step 2: Gamertag (shown when API key is entered)
     let gamertag_section: Element<'_, Message> = if has_key || has_tag {
-        let step2_label = step_label("2", "Gamertag", color);
+        let step2_label = step_label("2", t("import_step_gamertag"), color);
         column![
             separator(color),
             step2_label,
-            text_input("Your Xbox gamertag", &app.profile.xbox_gamertag)
-                .on_input(Message::UpdateXboxGamertag)
-                .padding(8)
-                .size(sz(12))
-                .font(ui_font()),
+            text_input(
+                t("import_xbox_gamertag_placeholder"),
+                &app.profile.xbox_gamertag
+            )
+            .on_input(Message::UpdateXboxGamertag)
+            .padding(8)
+            .size(sz(12))
+            .font(ui_font()),
         ]
         .spacing(6)
         .into()
@@ -593,16 +598,16 @@ fn xbox_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Import button
     let import_btn = if has_key && !xbox_importing {
-        button(ui_text("Import Xbox", 13))
+        button(ui_text(import_label(Platform::Xbox), 13))
             .on_press(Message::ImportXbox)
             .padding([8, 18])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else if xbox_importing {
-        button(ui_text("Importing...", 13).color(Palette::WARNING()))
+        button(ui_text(t("import_importing"), 13).color(Palette::WARNING()))
             .padding([8, 18])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Import Xbox", 13).color(Palette::TEXT_DIMMER()))
+        button(ui_text(import_label(Platform::Xbox), 13).color(Palette::TEXT_DIMMER()))
             .padding([8, 18])
             .style(theme::disabled_btn_style())
     };
@@ -633,16 +638,16 @@ fn psn_setup_card(app: &Spotter) -> Element<'_, Message> {
     let psn_importing = app.importing.contains("PlayStation");
 
     let status_pill = if psn_importing {
-        status_badge("Importing...", Palette::WARNING())
+        status_badge(t("import_importing"), Palette::WARNING())
     } else if has_token {
-        status_badge("Ready", Palette::SUCCESS())
+        status_badge(t("import_ready"), Palette::SUCCESS())
     } else {
-        status_badge("Setup required", Palette::ERROR())
+        status_badge(t("import_setup_needed"), Palette::ERROR())
     };
 
     let header_row = row![
         platform_dot(color),
-        ui_text("PlayStation", 18).color(color),
+        ui_text(Platform::PlayStation.store_name(), 18).color(color),
         space::horizontal(),
         status_pill,
     ]
@@ -650,17 +655,14 @@ fn psn_setup_card(app: &Spotter) -> Element<'_, Message> {
     .align_y(iced::Alignment::Center);
 
     // Step 1: NPSSO Token
-    let step1_label = step_label("1", "NPSSO Token", color);
+    let step1_label = step_label("1", t("import_step_npsso"), color);
     let npsso_input = column![
-        text_input(
-            "Get from ca.account.sony.com/api/v1/ssocookie",
-            &app.profile.psn_npsso,
-        )
-        .on_input(Message::UpdatePsnNpsso)
-        .padding(8)
-        .size(sz(12))
-        .font(ui_font()),
-        button(ui_text("Get token from ca.account.sony.com", 10).color(Palette::ACCENT()),)
+        text_input(t("import_psn_placeholder"), &app.profile.psn_npsso)
+            .on_input(Message::UpdatePsnNpsso)
+            .padding(8)
+            .size(sz(12))
+            .font(ui_font()),
+        button(ui_text(t("import_psn_link"), 10).color(Palette::ACCENT()),)
             .on_press(Message::OpenUrl(
                 "https://ca.account.sony.com/api/v1/ssocookie".to_string(),
             ))
@@ -671,16 +673,16 @@ fn psn_setup_card(app: &Spotter) -> Element<'_, Message> {
 
     // Import button
     let import_btn = if has_token && !psn_importing {
-        button(ui_text("Import PlayStation", 13))
+        button(ui_text(import_label(Platform::PlayStation), 13))
             .on_press(Message::ImportPlayStation)
             .padding([8, 18])
             .style(theme::primary_btn_style(Palette::BTN_SUCCESS()))
     } else if psn_importing {
-        button(ui_text("Importing...", 13).color(Palette::WARNING()))
+        button(ui_text(t("import_importing"), 13).color(Palette::WARNING()))
             .padding([8, 18])
             .style(theme::loading_btn_style())
     } else {
-        button(ui_text("Import PlayStation", 13).color(Palette::TEXT_DIMMER()))
+        button(ui_text(import_label(Platform::PlayStation), 13).color(Palette::TEXT_DIMMER()))
             .padding([8, 18])
             .style(theme::disabled_btn_style())
     };
@@ -709,25 +711,17 @@ fn nintendo_info_card() -> Element<'static, Message> {
 
     let header_row = row![
         platform_dot(color),
-        ui_text("Nintendo", 18).color(color),
+        ui_text(Platform::Nintendo.store_name(), 18).color(color),
         space::horizontal(),
-        status_badge("Manual only", Palette::TEXT_MUTED()),
+        status_badge(t("import_manual_only"), Palette::TEXT_MUTED()),
     ]
     .spacing(10)
     .align_y(iced::Alignment::Center);
 
     let card_content = column![
         header_row,
-        ui_text(
-            "Nintendo does not provide a public API for game libraries.",
-            12
-        )
-        .color(Palette::TEXT_MUTED()),
-        ui_text(
-            "You can add Nintendo games manually via the Add Game page.",
-            12
-        )
-        .color(Palette::TEXT_MUTED()),
+        ui_text(t("import_nintendo_no_api"), 12).color(Palette::TEXT_MUTED()),
+        ui_text(t("import_nintendo_manual"), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(10);
 
@@ -749,20 +743,19 @@ fn import_history_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
     let mut log_col = column![].spacing(4);
 
     for entry in app.import_history.iter().rev().take(10) {
-        let is_error = entry.contains("ERROR");
-        let color = if is_error {
-            Palette::ERROR()
-        } else {
-            Palette::SUCCESS()
+        let (text, color) = match entry {
+            Ok(text) => (text, Palette::SUCCESS()),
+            Err(text) => (text, Palette::ERROR()),
         };
-        log_col = log_col.push(ui_text(entry.as_str(), 12).color(color));
+        log_col = log_col.push(ui_text(text.as_str(), 12).color(color));
     }
 
     let card_content = column![
         row![
-            ui_text("Import Log", 16).color(accent),
+            ui_text(t("import_log"), 16).color(accent),
             space::horizontal(),
-            ui_text(format!("{} entries", app.import_history.len()), 11).color(Palette::TEXT_DIM()),
+            ui_text(tn("import_log_entries", app.import_history.len(), &[]), 11)
+                .color(Palette::TEXT_DIM()),
         ]
         .align_y(iced::Alignment::Center),
         separator(accent),
@@ -780,52 +773,31 @@ fn import_history_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 // ── Help section ──
 
 fn help_section<'a>(accent: Color) -> Element<'a, Message> {
-    let tips = column![
-        tip_row(
-            "Steam",
-            "Login to get your ID, then enter your API key from steamcommunity.com/dev/apikey",
-            Platform::Steam.color()
-        ),
-        tip_row(
-            "GOG",
-            "Click Login, sign in, paste the redirect URL back",
-            Platform::Gog.color()
-        ),
-        tip_row(
-            "Epic",
-            "Login to import full library, or scan locally (installed only)",
-            Platform::Epic.color()
-        ),
-        tip_row(
-            "Xbox",
-            "Get a free API key from xbl.io, enter it above, then import",
-            Platform::Xbox.color()
-        ),
-        tip_row(
-            "PSN",
-            "Get NPSSO token from ca.account.sony.com, enter it above",
-            Platform::PlayStation.color()
-        ),
-        tip_row(
-            "Nintendo",
-            "No API available: add games manually via Add Game",
-            Platform::Nintendo.color()
-        ),
-    ]
+    let tips = column(
+        [
+            (Platform::Steam, "import_tip_steam"),
+            (Platform::Gog, "import_tip_gog"),
+            (Platform::Epic, "import_tip_epic"),
+            (Platform::Xbox, "import_tip_xbox"),
+            (Platform::PlayStation, "import_tip_playstation"),
+            (Platform::Nintendo, "import_tip_nintendo"),
+        ]
+        .map(|(platform, tip)| tip_row(platform, t(tip))),
+    )
     .spacing(8);
 
     let notes = column![
-        note_row("Re-importing updates existing games and adds new ones (no duplicates)"),
-        note_row("Cover images are downloaded automatically after import"),
-        note_row("You can export/import JSON backups from the Profile page"),
+        note_row(t("import_note_reimport")),
+        note_row(t("import_note_covers")),
+        note_row(t("import_note_backups")),
     ]
     .spacing(4);
 
     let card_content = column![
         row![
-            ui_text("Setup Guide", 16).color(accent),
+            ui_text(t("import_guide"), 16).color(accent),
             space::horizontal(),
-            ui_text("Quick Reference", 11).color(Palette::TEXT_DIM()),
+            ui_text(t("import_guide_subtitle"), 11).color(Palette::TEXT_DIM()),
         ]
         .align_y(iced::Alignment::Center),
         rule::horizontal(1),
@@ -845,6 +817,11 @@ fn help_section<'a>(accent: Color) -> Element<'a, Message> {
 }
 
 // ── Shared helpers ──
+
+/// "Import Steam", on the button that starts an import.
+fn import_label(platform: Platform) -> String {
+    tf("import_platform", &[("platform", &platform)])
+}
 
 fn step_label<'a>(num: &'a str, label: &'a str, color: Color) -> Element<'a, Message> {
     let num_badge = container(ui_text(num, 11).color(color))
@@ -867,10 +844,10 @@ fn step_label<'a>(num: &'a str, label: &'a str, color: Color) -> Element<'a, Mes
         .into()
 }
 
-fn tip_row<'a>(platform: &'a str, tip: &'a str, color: Color) -> Element<'a, Message> {
+fn tip_row<'a>(platform: Platform, tip: &'a str) -> Element<'a, Message> {
     row![
-        container(ui_text(platform, 11).color(color))
-            .width(55)
+        container(ui_text(platform.to_string(), 11).color(platform.color()))
+            .width(colony_ui::sz(80))
             .padding([2, 0]),
         ui_text(tip, 12).color(Palette::TEXT_SECONDARY()),
     ]

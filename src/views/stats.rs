@@ -3,15 +3,19 @@ use iced::widget::{column, container, progress_bar, row, rule, space};
 use iced::{Background, Border, Color, Element, Length, Theme};
 
 use crate::app::{Message, Spotter};
+use crate::i18n::{decimal, percent, t, tf, tn};
 use crate::models::{GameStatus, Platform};
 use crate::theme::{self, ui_text};
 
 pub fn view(app: &Spotter) -> Element<'_, Message> {
     let header = column![
-        ui_text(format!("{} Statistics", theme::icons::STATS), 24)
-            .font(colony_ui::ui_font_bold())
-            .color(Palette::TEXT_PRIMARY()),
-        ui_text("Overview of your gaming journey", 12).color(Palette::TEXT_MUTED()),
+        ui_text(
+            format!("{} {}", theme::icons::STATS, t("nav_statistics")),
+            24
+        )
+        .font(colony_ui::ui_font_bold())
+        .color(Palette::TEXT_PRIMARY()),
+        ui_text(t("stats_subtitle"), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(4);
 
@@ -35,23 +39,23 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
     // Overview cards
     let overview = row![
         stat_card(
-            "Total Games",
+            t("stats_games"),
             format!("{}", app.games.len()),
             Palette::ACCENT()
         ),
         stat_card(
-            "Total Playtime",
+            t("stats_total_playtime"),
             format_playtime(total_playtime),
             Palette::SUCCESS()
         ),
         stat_card(
-            "Achievements",
+            t("detail_achievements"),
             format!("{}/{}", total_achievements, total_possible),
             Palette::WARNING()
         ),
         stat_card(
-            "Avg Rating",
-            format!("{:.1}/10", avg_rating),
+            t("stats_average_rating"),
+            format!("{}/10", decimal(avg_rating, 1)),
             theme::shared_accent("violet")
         ),
     ]
@@ -141,11 +145,8 @@ fn playtime_chart<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     if data.is_empty() {
         return section_card(
-            "Playtime (Last 30 Days)",
-            column![
-                ui_text("No playtime data yet. Import games to start tracking!", 13)
-                    .color(Palette::TEXT_MUTED()),
-            ],
+            t("stats_playtime_30_days"),
+            column![ui_text(t("stats_no_playtime"), 13).color(Palette::TEXT_MUTED()),],
         );
     }
 
@@ -187,10 +188,10 @@ fn playtime_chart<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     let total_tracked: u32 = data.iter().map(|(_, m)| *m).sum();
     let subtitle = ui_text(
-        format!(
-            "Total: {} tracked over {} days",
-            format_playtime(total_tracked),
-            data.len()
+        tn(
+            "stats_tracked",
+            data.len(),
+            &[("time", &format_playtime(total_tracked))],
         ),
         11,
     )
@@ -205,16 +206,11 @@ fn playtime_chart<'a>(app: &'a Spotter) -> Element<'a, Message> {
     .spacing(8);
 
     if is_sample_data {
-        chart_content = chart_content.push(
-            ui_text(
-                "Estimated from currently playing games (no recorded playtime data yet)",
-                10,
-            )
-            .color(Palette::TEXT_DIM()),
-        );
+        chart_content =
+            chart_content.push(ui_text(t("stats_estimated"), 10).color(Palette::TEXT_DIM()));
     }
 
-    section_card("Playtime (Last 30 Days)", chart_content)
+    section_card(t("stats_playtime_30_days"), chart_content)
 }
 
 fn generate_sample_playtime(app: &Spotter) -> Vec<(String, u32)> {
@@ -253,20 +249,20 @@ fn status_distribution<'a>(app: &'a Spotter) -> Element<'a, Message> {
             0.0
         };
         let bar_row = row![
-            ui_text(format!("{}", status), 12)
+            ui_text(status.label(), 12)
                 .color(status.color())
-                .width(90),
+                .width(label_width()),
             container(progress_bar(0.0..=100.0, pct).girth(10)).width(Length::Fill),
-            ui_text(format!("{} ({:.0}%)", count, pct), 12)
+            ui_text(format!("{} ({})", count, percent(pct, 0)), 12)
                 .color(Palette::TEXT_SECONDARY())
-                .width(80),
+                .width(count_width()),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center);
         bars = bars.push(bar_row);
     }
 
-    section_card("Status Distribution", bars)
+    section_card(t("stats_by_status"), bars)
 }
 
 fn platform_distribution<'a>(app: &'a Spotter) -> Element<'a, Message> {
@@ -285,20 +281,20 @@ fn platform_distribution<'a>(app: &'a Spotter) -> Element<'a, Message> {
             0.0
         };
         let bar_row = row![
-            ui_text(format!("{}", platform), 12)
+            ui_text(platform.to_string(), 12)
                 .color(platform.color())
-                .width(90),
+                .width(label_width()),
             container(progress_bar(0.0..=100.0, pct).girth(10)).width(Length::Fill),
-            ui_text(format!("{} ({:.0}%)", count, pct), 12)
+            ui_text(format!("{} ({})", count, percent(pct, 0)), 12)
                 .color(Palette::TEXT_SECONDARY())
-                .width(80),
+                .width(count_width()),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center);
         bars = bars.push(bar_row);
     }
 
-    section_card("Platform Distribution", bars)
+    section_card(t("stats_by_platform"), bars)
 }
 
 fn most_played_games<'a>(app: &'a Spotter) -> Element<'a, Message> {
@@ -317,14 +313,14 @@ fn most_played_games<'a>(app: &'a Spotter) -> Element<'a, Message> {
             container(progress_bar(0.0..=100.0, pct).girth(10)).width(Length::Fill),
             ui_text(game.playtime_display(), 12)
                 .color(Palette::ACCENT())
-                .width(80),
+                .width(count_width()),
         ]
         .spacing(8)
         .align_y(iced::Alignment::Center);
         rows = rows.push(game_row);
     }
 
-    section_card("Most Played", rows)
+    section_card(t("stats_most_played"), rows)
 }
 
 fn period_comparison<'a>(app: &'a Spotter) -> Element<'a, Message> {
@@ -374,7 +370,7 @@ fn period_comparison<'a>(app: &'a Spotter) -> Element<'a, Message> {
     } else if playtime_delta < 0 {
         format!("-{}", format_playtime((-playtime_delta) as u32))
     } else {
-        "same".to_string()
+        t("stats_same").to_owned()
     };
 
     let playtime_color = if playtime_delta > 0 {
@@ -386,12 +382,13 @@ fn period_comparison<'a>(app: &'a Spotter) -> Element<'a, Message> {
     };
 
     let completed_delta = completed_this as i64 - completed_last as i64;
-    let completed_arrow = if completed_delta > 0 {
-        format!("+{}", completed_delta)
-    } else if completed_delta < 0 {
-        format!("{}", completed_delta)
+    let completed_arrow = if completed_delta == 0 {
+        t("stats_completed_same").to_owned()
     } else {
-        "same".to_string()
+        tf(
+            "stats_completed_change",
+            &[("change", &format!("{completed_delta:+}"))],
+        )
     };
 
     let completed_color = if completed_delta > 0 {
@@ -404,24 +401,25 @@ fn period_comparison<'a>(app: &'a Spotter) -> Element<'a, Message> {
 
     let content = column![row![
         column![
-            ui_text("This Month", 11).color(Palette::TEXT_MUTED()),
+            ui_text(t("stats_this_month"), 11).color(Palette::TEXT_MUTED()),
             ui_text(format_playtime(this_month_playtime), 20).color(Palette::ACCENT()),
-            ui_text(format!("{} completed", completed_this), 12)
+            ui_text(tn("stats_completed", completed_this, &[]), 12)
                 .color(GameStatus::Completed.color()),
         ]
         .spacing(4)
         .width(Length::Fill),
         column![
-            ui_text("vs Last Month", 11).color(Palette::TEXT_MUTED()),
+            ui_text(t("stats_last_month"), 11).color(Palette::TEXT_MUTED()),
             ui_text(format_playtime(last_month_playtime), 20).color(Palette::TEXT_SECONDARY()),
-            ui_text(format!("{} completed", completed_last), 12).color(Palette::TEXT_SECONDARY()),
+            ui_text(tn("stats_completed", completed_last, &[]), 12)
+                .color(Palette::TEXT_SECONDARY()),
         ]
         .spacing(4)
         .width(Length::Fill),
         column![
-            ui_text("Change", 11).color(Palette::TEXT_MUTED()),
+            ui_text(t("stats_change"), 11).color(Palette::TEXT_MUTED()),
             ui_text(playtime_arrow, 20).color(playtime_color),
-            ui_text(format!("{} completed", completed_arrow), 12).color(completed_color),
+            ui_text(completed_arrow, 12).color(completed_color),
         ]
         .spacing(4)
         .width(Length::Fill),
@@ -429,9 +427,20 @@ fn period_comparison<'a>(app: &'a Spotter) -> Element<'a, Message> {
     .spacing(16),]
     .spacing(8);
 
-    section_card("Month Comparison", content)
+    section_card(t("stats_month_comparison"), content)
 }
 
 fn format_playtime(minutes: u32) -> String {
     crate::models::format_playtime(minutes)
+}
+
+/// The width of a bar's label, with room for the longer French names at
+/// every text size.
+fn label_width() -> f32 {
+    colony_ui::sz(130)
+}
+
+/// The width of a bar's count or time.
+fn count_width() -> f32 {
+    colony_ui::sz(90)
 }
