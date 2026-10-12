@@ -24,9 +24,9 @@ config folder:
 You can edit it while Spotter is closed. A missing field takes its default, and
 a value Spotter does not understand (for example one written by a newer
 version) falls back to its default while every other field keeps its value.
-If the file cannot be read at all, Spotter starts on defaults, says so, and
-refuses to save anything for the rest of the session, so the file on disk stays
-as it was.
+If the file is not valid JSON or cannot be read, Spotter starts on defaults,
+says so, and refuses to save anything for the rest of the session, so the file
+on disk stays as it was.
 
 The file also holds a little state that is not a preference: your favourite
 games and, when **Remember filters** is on, the last status and platform

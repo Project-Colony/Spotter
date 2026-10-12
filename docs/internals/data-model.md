@@ -17,7 +17,8 @@ Windows and macOS:
 <config>/
 ├── preferences/
 │   └── preferences.json          every preference, see guide/configuration.md
-└── credentials/                  only when no OS keyring is usable (0600 on Unix)
+└── credentials/
+    └── tokens.json               only when no OS keyring is usable (0600 on Unix)
 
 <data>/
 ├── library/
@@ -122,8 +123,8 @@ UserProfile {
 
 `keyring.rs` loads and saves the seven secret fields. They live in the OS
 keyring under the service name `spotter`, one entry per field. When no keyring
-is usable they go to `<config>/credentials/` instead, and the Profile page says
-so. The matching database columns stay empty.
+is usable they go to `<config>/credentials/tokens.json` instead, and the
+Profile page says so. The matching database columns stay empty.
 
 ### Preferences
 

@@ -132,8 +132,8 @@ and a test keeps the two locales' key sets identical.
 `keyring.rs` sits between the profile and the database. On load it reads the
 seven secret fields from the keyring; on save it writes them there and keeps
 their database columns empty. The first keyring failure in a session switches
-it to the fallback file in `<config>/credentials/` for the rest of the session,
-and the Profile page shows a warning. It only deletes keyring entries it has
+it to the fallback file `<config>/credentials/tokens.json` for the rest of the
+session, and the Profile page shows a warning. It only deletes keyring entries it has
 read or written this session, because a locked store can answer "no entry"
 for a secret it does hold.
 

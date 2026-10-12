@@ -32,9 +32,9 @@ and you are credited in the release notes if you want to be.
 Reports of particular interest:
 
 - **Credentials**: a store token or API key written anywhere other than the
-  operating system's keyring while a keyring is usable, a fallback file in
-  `credentials/` readable by other users, or a secret that reaches a log, an
-  export, a URL or the wrong host.
+  operating system's keyring while a keyring is usable, a fallback
+  `credentials/tokens.json` readable by other users, or a secret that reaches
+  a log, an export, a URL or the wrong host.
 - **The Steam login listener**: Spotter accepts the OpenID answer on
   `127.0.0.1` (ports 29876 to 29880) and confirms it with `steamcommunity.com`
   before trusting the Steam ID. A way to make it accept a forged answer, or to
