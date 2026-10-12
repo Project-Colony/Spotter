@@ -179,7 +179,7 @@ fn profile_overview_card<'a>(app: &'a Spotter) -> Element<'a, Message> {
 fn platform_note_card(name: &str, color: Color) -> Element<'static, Message> {
     let card_content = row![
         platform_dot(color),
-        ui_text(format!("{} — managed on Import page", name), 12).color(Palette::TEXT_MUTED()),
+        ui_text(format!("{}: managed on the Import page", name), 12).color(Palette::TEXT_MUTED()),
     ]
     .spacing(10)
     .align_y(iced::Alignment::Center);

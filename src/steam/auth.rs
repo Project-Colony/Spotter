@@ -244,8 +244,9 @@ pub fn steam_login() -> Result<String, String> {
 mod tests {
     #[test]
     fn the_callback_page_is_drawn_in_the_given_colours() {
-        let page = super::callback_page("Done", "Close this tab.", colony_ui::hex(0xabcdef));
-        assert!(page.contains("color:#abcdef"), "{page}");
+        const INK: u32 = 0xabcdef;
+        let page = super::callback_page("Done", "Close this tab.", colony_ui::hex(INK));
+        assert!(page.contains(&format!("color:#{INK:06x}")), "{page}");
         assert!(
             page.contains("<h1>Done</h1><p>Close this tab.</p>"),
             "{page}"

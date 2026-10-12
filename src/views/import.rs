@@ -413,7 +413,7 @@ fn epic_setup_card(app: &Spotter) -> Element<'_, Message> {
             .into()
     } else {
         ui_text(
-            "Optional — without login, only installed games are detected",
+            "Optional: without login, only installed games are detected",
             12,
         )
         .color(Palette::TEXT_DIM())
@@ -808,7 +808,7 @@ fn help_section<'a>(accent: Color) -> Element<'a, Message> {
         ),
         tip_row(
             "Nintendo",
-            "No API available — add games manually via Add Game",
+            "No API available: add games manually via Add Game",
             Platform::Nintendo.color()
         ),
     ]

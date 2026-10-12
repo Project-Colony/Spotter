@@ -476,7 +476,7 @@ impl Spotter {
                     self.recently_deleted.push((game, id));
                     self.screen = Screen::Library;
                     self.invalidate_filter_cache();
-                    self.show_success("Game deleted — click Undo to restore");
+                    self.show_success("Game deleted. Click Undo to restore it.");
                     let ids = vec![id];
                     return delay_task(8000, move || Message::PermanentDelete(ids));
                 }
@@ -782,7 +782,10 @@ impl Spotter {
                 self.bulk_mode = false;
                 self.invalidate_filter_cache();
                 self.screen = Screen::Library;
-                self.show_success(format!("{} games deleted — click Undo to restore", count));
+                self.show_success(format!(
+                    "{} games deleted. Click Undo to restore them.",
+                    count
+                ));
                 return delay_task(8000, move || Message::PermanentDelete(delete_ids));
             }
             Message::ConfirmBulkDelete => {
@@ -1119,7 +1122,7 @@ pub fn run() -> iced::Result {
             iced::application(boot, Spotter::update, Spotter::view),
             |app, font| app.font(font),
         )
-        .title("Spotter — Game Tracker")
+        .title("Spotter")
         .theme(Spotter::theme)
         .subscription(Spotter::subscription)
         .default_font(colony_ui::ui_font())

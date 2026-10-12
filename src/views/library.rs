@@ -344,7 +344,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
             column![
                 ui_text("Welcome to Spotter!", 18).color(accent),
                 ui_text(
-                    "Import from Steam, GOG, Epic, Xbox, PlayStation — or add games manually.",
+                    "Import from Steam, GOG, Epic, Xbox, PlayStation, or add games manually.",
                     13
                 )
                 .color(Palette::TEXT_SECONDARY()),
