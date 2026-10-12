@@ -59,7 +59,7 @@ pub fn view(app: &Spotter) -> Element<'_, Message> {
         2 => kit
             .accessibility_heading()
             .push(kit.vision_section())
-            .push(page.colour_cues())
+            .push(page.color_cues())
             .push(kit.motion_section())
             .push(page.navigation())
             .push(kit.reading_section())
@@ -217,11 +217,11 @@ impl<'a> Page<'a> {
 
     // ── Accessibility ──
 
-    fn colour_cues(&self) -> Element<'a, Message> {
+    fn color_cues(&self) -> Element<'a, Message> {
         self.section(
-            "colour_cues",
-            "preferences_section_colour_cues",
-            "preferences_colour_cues_desc",
+            "color_cues",
+            "preferences_section_color_cues",
+            "preferences_color_cues_desc",
             vec![self.toggle(
                 "preferences_status_labels",
                 "preferences_status_labels_desc",

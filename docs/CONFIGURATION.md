@@ -28,7 +28,7 @@ Theme, accent, text size, effects and a live preview come from the shared kit (s
 
 ### Accessibility
 
-Vision, Motion and Reading come from the shared kit. Spotter adds Colour cues and Navigation:
+Vision, Motion and Reading come from the shared kit. Spotter adds Color cues and Navigation:
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
