@@ -156,7 +156,7 @@ fn exchange_npsso(npsso: &str) -> Result<String, String> {
     };
 
     if code.is_empty() {
-        return Err("Empty authorization code. NPSSO token may be expired.".into());
+        return Err(crate::i18n::t("error_psn_expired").into());
     }
 
     eprintln!("[psn] Got authorization code, exchanging for access token...");
@@ -299,10 +299,10 @@ fn parse_play_duration(duration: &str) -> u32 {
 pub fn full_import(npsso: &str) -> Result<Vec<Game>, String> {
     let access_token = exchange_npsso(npsso)?;
 
-    let logger = crate::api_client::ImportLogger::new(&crate::api_client::log_dir());
+    let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("psn", "Starting PlayStation import");
 
-    // Fetch trophy titles (primary source — has achievement data)
+    // Fetch trophy titles (primary source: has achievement data)
     eprintln!("[psn] Fetching trophy titles...");
     let trophy_titles = fetch_trophy_titles(&access_token)?;
     eprintln!("[psn] Found {} trophy titles", trophy_titles.len());

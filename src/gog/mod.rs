@@ -71,7 +71,7 @@ pub fn full_import(token: &str) -> Result<Vec<Game>, String> {
         return Err("GOG token is required.".into());
     }
 
-    let logger = api_client::ImportLogger::new(&api_client::log_dir());
+    let logger = api_client::ImportLogger::for_imports();
     logger.log("gog", "Starting GOG import");
 
     // Step 1: Get all owned games from the filtered listing (games only, no DLCs).

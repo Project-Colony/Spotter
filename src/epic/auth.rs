@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-/// Epic Games OAuth credentials — well-known launcher client used by Legendary/Heroic.
+/// Epic Games OAuth credentials: well-known launcher client used by Legendary/Heroic.
 /// These are the same credentials every open-source Epic client uses.
 const EPIC_CLIENT_ID: &str = "34a02cf8f4414e29b15921876da36f9a";
 const EPIC_CLIENT_SECRET: &str = "daafbccc737745039dffe53d94fc76cf";
@@ -128,7 +128,7 @@ pub fn exchange_code(code: &str) -> Result<EpicLoginResult, String> {
 /// Returns (access_token, refresh_token, account_id, display_name).
 pub fn refresh_token(refresh: &str) -> Result<EpicLoginResult, String> {
     if refresh.is_empty() {
-        return Err("No refresh token available. Please login again.".into());
+        return Err(crate::i18n::t("error_login_expired").into());
     }
 
     let url = format!("{}/account/api/oauth/token", EPIC_OAUTH_HOST);

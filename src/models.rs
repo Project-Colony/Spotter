@@ -1,5 +1,8 @@
+use colony_ui::preferences::StandardPreferences;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
+use crate::i18n::{t, tf};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Game {
@@ -76,14 +79,34 @@ impl Platform {
         &Self::ALL
     }
 
+    /// The platform's identity colour: the shared accent closest to its brand.
+    /// Not `colony_ui::app_tint`, whose name hash gives Steam and PlayStation
+    /// the same red, and Epic and Nintendo the same indigo.
     pub fn color(&self) -> iced::Color {
+        crate::theme::shared_accent(self.accent_key())
+    }
+
+    /// The shared Colony accent that identifies this platform.
+    pub fn accent_key(&self) -> &'static str {
         match self {
-            Platform::Steam => iced::Color::from_rgb(0.4, 0.6, 0.9),
-            Platform::Gog => iced::Color::from_rgb(0.7, 0.5, 0.9),
-            Platform::Epic => iced::Color::from_rgb(0.9, 0.9, 0.3),
-            Platform::PlayStation => iced::Color::from_rgb(0.2, 0.4, 0.9),
-            Platform::Xbox => iced::Color::from_rgb(0.2, 0.8, 0.2),
-            Platform::Nintendo => iced::Color::from_rgb(0.9, 0.2, 0.2),
+            Platform::Steam => "blue",
+            Platform::Gog => "violet",
+            Platform::Epic => "yellow",
+            Platform::PlayStation => "indigo",
+            Platform::Xbox => "green",
+            Platform::Nintendo => "red",
+        }
+    }
+
+    /// The store's full name, for headings. A brand, so never translated.
+    pub fn store_name(&self) -> &'static str {
+        match self {
+            Platform::Steam => "Steam",
+            Platform::Gog => "GOG Galaxy",
+            Platform::Epic => "Epic Games",
+            Platform::PlayStation => "PlayStation",
+            Platform::Xbox => "Xbox",
+            Platform::Nintendo => "Nintendo",
         }
     }
 
@@ -139,6 +162,18 @@ impl fmt::Display for GameStatus {
 }
 
 impl GameStatus {
+    /// The status's name in the interface language. `Display` gives the name
+    /// the database stores, which does not change with the language.
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            GameStatus::Playing => "status_playing",
+            GameStatus::Completed => "status_completed",
+            GameStatus::Unplayed => "status_unplayed",
+            GameStatus::Dropped => "status_dropped",
+            GameStatus::Wishlist => "status_wishlist",
+        })
+    }
+
     pub const ALL: [GameStatus; 5] = [
         GameStatus::Playing,
         GameStatus::Completed,
@@ -151,13 +186,20 @@ impl GameStatus {
         &Self::ALL
     }
 
+    /// The status colour, a shared accent so that it reads the same on every
+    /// theme and no two statuses share it.
     pub fn color(&self) -> iced::Color {
+        crate::theme::shared_accent(self.accent_key())
+    }
+
+    /// The shared Colony accent that identifies this status.
+    pub fn accent_key(&self) -> &'static str {
         match self {
-            GameStatus::Playing => iced::Color::from_rgb(0.2, 0.8, 0.4),
-            GameStatus::Completed => iced::Color::from_rgb(0.3, 0.6, 1.0),
-            GameStatus::Unplayed => iced::Color::from_rgb(0.9, 0.7, 0.2),
-            GameStatus::Dropped => iced::Color::from_rgb(0.8, 0.3, 0.3),
-            GameStatus::Wishlist => iced::Color::from_rgb(0.7, 0.5, 0.9),
+            GameStatus::Playing => "green",
+            GameStatus::Completed => "blue",
+            GameStatus::Unplayed => "amber",
+            GameStatus::Dropped => "red",
+            GameStatus::Wishlist => "violet",
         }
     }
 
@@ -231,20 +273,19 @@ pub enum SortOrder {
     FavoritesFirst,
 }
 
-impl fmt::Display for SortOrder {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SortOrder::TitleAsc => write!(f, "A-Z"),
-            SortOrder::TitleDesc => write!(f, "Z-A"),
-            SortOrder::PlaytimeDesc => write!(f, "Playtime"),
-            SortOrder::RatingDesc => write!(f, "Rating"),
-            SortOrder::LastPlayedDesc => write!(f, "Recent"),
-            SortOrder::FavoritesFirst => write!(f, "Favorites"),
-        }
-    }
-}
-
 impl SortOrder {
+    /// The order's name in the interface language.
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            SortOrder::TitleAsc => "sort_title_asc",
+            SortOrder::TitleDesc => "sort_title_desc",
+            SortOrder::PlaytimeDesc => "sort_playtime",
+            SortOrder::RatingDesc => "sort_rating",
+            SortOrder::LastPlayedDesc => "sort_recent",
+            SortOrder::FavoritesFirst => "sort_favorites",
+        })
+    }
+
     pub const ALL: [SortOrder; 6] = [
         SortOrder::TitleAsc,
         SortOrder::TitleDesc,
@@ -259,15 +300,18 @@ impl SortOrder {
     }
 }
 
-/// Format a minute count as a human-readable string (e.g. "123h 45m" or "3.5h").
+/// Format a minute count for the interface ("123h 05m", "45m" in English).
 /// Shared across stats, profile, and detail views.
 pub fn format_playtime(minutes: u32) -> String {
     let hours = minutes / 60;
     let mins = minutes % 60;
     if hours > 0 {
-        format!("{}h {:02}m", hours, mins)
+        tf(
+            "playtime_hours",
+            &[("hours", &hours), ("minutes", &format!("{mins:02}"))],
+        )
     } else {
-        format!("{}m", mins)
+        tf("playtime_minutes", &[("minutes", &mins)])
     }
 }
 
@@ -293,167 +337,7 @@ impl Default for UserProfile {
     }
 }
 
-// ───── Settings ─────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ThemeMode {
-    Dark,
-    Darker,
-    Midnight,
-}
-
-impl fmt::Display for ThemeMode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ThemeMode::Dark => write!(f, "Dark"),
-            ThemeMode::Darker => write!(f, "Darker"),
-            ThemeMode::Midnight => write!(f, "Midnight"),
-        }
-    }
-}
-
-impl ThemeMode {
-    pub const ALL: [ThemeMode; 3] = [ThemeMode::Dark, ThemeMode::Darker, ThemeMode::Midnight];
-
-    pub fn all() -> &'static [ThemeMode] {
-        &Self::ALL
-    }
-
-    /// Background color for main content area.
-    pub fn bg_main(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.1, 0.1, 0.14),
-            ThemeMode::Darker => iced::Color::from_rgb(0.06, 0.06, 0.09),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.02, 0.02, 0.05),
-        }
-    }
-
-    /// Background color for sidebar.
-    pub fn bg_sidebar(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.08, 0.08, 0.12),
-            ThemeMode::Darker => iced::Color::from_rgb(0.04, 0.04, 0.07),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.01, 0.01, 0.03),
-        }
-    }
-
-    /// Background color for cards/containers.
-    pub fn bg_card(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.12, 0.12, 0.16),
-            ThemeMode::Darker => iced::Color::from_rgb(0.08, 0.08, 0.11),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.04, 0.04, 0.07),
-        }
-    }
-
-    /// Slightly darker row background inside cards (e.g. settings rows).
-    pub fn bg_row(&self) -> iced::Color {
-        match self {
-            ThemeMode::Dark => iced::Color::from_rgb(0.09, 0.09, 0.13),
-            ThemeMode::Darker => iced::Color::from_rgb(0.06, 0.06, 0.09),
-            ThemeMode::Midnight => iced::Color::from_rgb(0.03, 0.03, 0.05),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AccentColor {
-    Blue,
-    Purple,
-    Green,
-    Gold,
-    Red,
-    Cyan,
-}
-
-impl fmt::Display for AccentColor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AccentColor::Blue => write!(f, "Blue"),
-            AccentColor::Purple => write!(f, "Purple"),
-            AccentColor::Green => write!(f, "Green"),
-            AccentColor::Gold => write!(f, "Gold"),
-            AccentColor::Red => write!(f, "Red"),
-            AccentColor::Cyan => write!(f, "Cyan"),
-        }
-    }
-}
-
-impl AccentColor {
-    pub const ALL: [AccentColor; 6] = [
-        AccentColor::Blue,
-        AccentColor::Purple,
-        AccentColor::Green,
-        AccentColor::Gold,
-        AccentColor::Red,
-        AccentColor::Cyan,
-    ];
-
-    pub fn all() -> &'static [AccentColor] {
-        &Self::ALL
-    }
-
-    pub fn color(&self) -> iced::Color {
-        match self {
-            AccentColor::Blue => iced::Color::from_rgb(0.6, 0.8, 1.0),
-            AccentColor::Purple => iced::Color::from_rgb(0.7, 0.5, 0.9),
-            AccentColor::Green => iced::Color::from_rgb(0.4, 0.9, 0.5),
-            AccentColor::Gold => iced::Color::from_rgb(1.0, 0.85, 0.3),
-            AccentColor::Red => iced::Color::from_rgb(1.0, 0.45, 0.45),
-            AccentColor::Cyan => iced::Color::from_rgb(0.3, 0.9, 0.9),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum UiScale {
-    Small,
-    Normal,
-    Large,
-}
-
-impl fmt::Display for UiScale {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UiScale::Small => write!(f, "Small"),
-            UiScale::Normal => write!(f, "Normal"),
-            UiScale::Large => write!(f, "Large"),
-        }
-    }
-}
-
-impl UiScale {
-    pub const ALL: [UiScale; 3] = [UiScale::Small, UiScale::Normal, UiScale::Large];
-
-    pub fn all() -> &'static [UiScale] {
-        &Self::ALL
-    }
-
-    pub fn factor(&self) -> f32 {
-        match self {
-            UiScale::Small => 0.85,
-            UiScale::Normal => 1.0,
-            UiScale::Large => 1.2,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SettingsSection {
-    General,
-    Appearances,
-    Accessibility,
-}
-
-impl fmt::Display for SettingsSection {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SettingsSection::General => write!(f, "General"),
-            SettingsSection::Appearances => write!(f, "Appearances"),
-            SettingsSection::Accessibility => write!(f, "Accessibility"),
-        }
-    }
-}
+// ───── Preferences ─────
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DateFormat {
@@ -463,17 +347,17 @@ pub enum DateFormat {
     Mdy, // 02/17/2026
 }
 
-impl fmt::Display for DateFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DateFormat::Ymd => write!(f, "YYYY-MM-DD"),
-            DateFormat::Dmy => write!(f, "DD/MM/YYYY"),
-            DateFormat::Mdy => write!(f, "MM/DD/YYYY"),
-        }
-    }
-}
-
 impl DateFormat {
+    /// The pattern as the user reads it, with the interface language's
+    /// letters for year, month and day.
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            DateFormat::Ymd => "date_format_ymd",
+            DateFormat::Dmy => "date_format_dmy",
+            DateFormat::Mdy => "date_format_mdy",
+        })
+    }
+
     pub const ALL: [DateFormat; 3] = [DateFormat::Ymd, DateFormat::Dmy, DateFormat::Mdy];
 
     pub fn all() -> &'static [DateFormat] {
@@ -520,17 +404,15 @@ pub enum ToastDuration {
     Long,  // 8s
 }
 
-impl fmt::Display for ToastDuration {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ToastDuration::Short => write!(f, "Short (2s)"),
-            ToastDuration::Normal => write!(f, "Normal (4s)"),
-            ToastDuration::Long => write!(f, "Long (8s)"),
-        }
-    }
-}
-
 impl ToastDuration {
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            ToastDuration::Short => "toast_duration_short",
+            ToastDuration::Normal => "toast_duration_normal",
+            ToastDuration::Long => "toast_duration_long",
+        })
+    }
+
     pub const ALL: [ToastDuration; 3] = [
         ToastDuration::Short,
         ToastDuration::Normal,
@@ -558,17 +440,15 @@ pub enum AchievementsDisplay {
     Hidden,
 }
 
-impl fmt::Display for AchievementsDisplay {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AchievementsDisplay::Full => write!(f, "Full"),
-            AchievementsDisplay::Summary => write!(f, "Summary"),
-            AchievementsDisplay::Hidden => write!(f, "Hidden"),
-        }
-    }
-}
-
 impl AchievementsDisplay {
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            AchievementsDisplay::Full => "achievements_display_full",
+            AchievementsDisplay::Summary => "achievements_display_summary",
+            AchievementsDisplay::Hidden => "achievements_display_hidden",
+        })
+    }
+
     pub const ALL: [AchievementsDisplay; 3] = [
         AchievementsDisplay::Full,
         AchievementsDisplay::Summary,
@@ -589,19 +469,18 @@ pub enum StartScreen {
     Profile,
 }
 
-impl fmt::Display for StartScreen {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StartScreen::Library => write!(f, "Library"),
-            StartScreen::Statistics => write!(f, "Statistics"),
-            StartScreen::Import => write!(f, "Import"),
-            StartScreen::Profile => write!(f, "Profile"),
-        }
-    }
-}
-
 #[allow(dead_code)]
 impl StartScreen {
+    /// The screen's name, as the sidebar shows it.
+    pub fn label(&self) -> &'static str {
+        t(match self {
+            StartScreen::Library => "nav_library",
+            StartScreen::Statistics => "nav_statistics",
+            StartScreen::Import => "nav_import",
+            StartScreen::Profile => "nav_profile",
+        })
+    }
+
     pub const ALL: [StartScreen; 4] = [
         StartScreen::Library,
         StartScreen::Statistics,
@@ -624,66 +503,54 @@ impl StartScreen {
     }
 }
 
-/// Current settings schema version.
-pub const SETTINGS_VERSION: u32 = 1;
+/// Current settings schema version. 2: the settings moved from the database
+/// to `preferences.json`, with the shared Colony preferences inside.
+pub const PREFERENCES_VERSION: u32 = 2;
 
-fn default_settings_version() -> u32 {
-    SETTINGS_VERSION
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
+/// Everything the user chose. Saved to `preferences.json` (see
+/// `crate::preferences`); a field missing from the file takes its default.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Preferences {
     /// Schema version for forward-compatible deserialization.
-    #[serde(default = "default_settings_version")]
     pub version: u32,
+    /// Theme, accent, text sizes and the accessibility switches every Colony
+    /// program shares, stored under the same names as theirs.
+    #[serde(flatten)]
+    pub standard: StandardPreferences,
     // General
+    /// The interface language ("en" or "fr"); none follows the system.
+    pub language: Option<String>,
     pub default_status: GameStatus,
     pub default_platform: Platform,
     pub confirm_before_delete: bool,
     pub start_screen: StartScreen,
-    #[serde(default = "default_true")]
     pub notifications_enabled: bool,
-    #[serde(default)]
     pub toast_duration: ToastDuration,
-    #[serde(default)]
     pub date_format: DateFormat,
-    #[serde(default)]
     pub default_sort_order: SortOrder,
-    #[serde(default = "default_true")]
     pub remember_filters: bool,
-    #[serde(default)]
     pub last_filter_status: Option<GameStatus>,
-    #[serde(default)]
     pub last_filter_platform: Option<Platform>,
-    #[serde(default)]
     pub show_game_descriptions: bool,
-    #[serde(default)]
     pub achievements_display: AchievementsDisplay,
-    #[serde(default = "default_true")]
     pub download_covers_auto: bool,
-    #[serde(default)]
     pub favorites: Vec<i64>,
-    // Appearances
-    pub theme_mode: ThemeMode,
-    pub accent_color: AccentColor,
+    // Appearance
     pub compact_list: bool,
     pub show_covers_in_list: bool,
-    pub ui_scale: UiScale,
     pub sidebar_width: u16,
     // Accessibility
-    pub high_contrast: bool,
     pub show_status_labels: bool,
     pub large_click_targets: bool,
 }
 
-fn default_true() -> bool {
-    true
-}
-
-impl Default for Settings {
+impl Default for Preferences {
     fn default() -> Self {
         Self {
-            version: SETTINGS_VERSION,
+            version: PREFERENCES_VERSION,
+            standard: StandardPreferences::default(),
+            language: None,
             default_status: GameStatus::Unplayed,
             default_platform: Platform::Steam,
             confirm_before_delete: true,
@@ -699,15 +566,28 @@ impl Default for Settings {
             achievements_display: AchievementsDisplay::Full,
             download_covers_auto: true,
             favorites: Vec::new(),
-            theme_mode: ThemeMode::Dark,
-            accent_color: AccentColor::Blue,
             compact_list: false,
             show_covers_in_list: true,
-            ui_scale: UiScale::Normal,
             sidebar_width: 220,
-            high_contrast: false,
             show_status_labels: true,
             large_click_targets: false,
+        }
+    }
+}
+
+impl Preferences {
+    /// Put the shared preferences and the interface language into effect.
+    pub fn apply(&self) {
+        self.standard.apply();
+        crate::i18n::set_language(self.language.as_deref());
+    }
+
+    /// Vertical padding of buttons and chips, larger with "Large click targets".
+    pub fn button_padding(&self) -> u16 {
+        if self.large_click_targets {
+            12
+        } else {
+            8
         }
     }
 }

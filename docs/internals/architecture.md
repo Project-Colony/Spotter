@@ -22,12 +22,18 @@ src/
 │                      import, profile, add game, Preferences) plus the sidebar
 ├── models.rs          Game, Platform, GameStatus, Achievement, UserProfile and
 │                      Spotter's own preferences
+├── preferences.rs     preferences.json: lenient load, save, import of the 0.3
+│                      settings
+├── paths.rs           where every file lives (on colony_ui::paths), and the
+│                      copy of the 0.3 files
+├── i18n/              en.json, fr.json and the t / tf / tn lookup
 ├── db.rs              SQLite schema, migrations, queries, export and import
 ├── keyring.rs         the seven secrets, in the OS keyring or the fallback file
 ├── api_client.rs      HTTP agents, retry and rate limiting, the import log,
 │                      URL encoding, opening the browser
 ├── images.rs          cover and achievement icon download and cache
-├── theme.rs           Spotter's widget styles over the colony-ui palette
+├── theme.rs           icons, ui_text and the widget styles over the colony-ui
+│                      palette
 ├── error.rs           SpotterError
 ├── steam/             mod.rs: owned games, store and achievement scraping
 │                      auth.rs: OpenID login on 127.0.0.1

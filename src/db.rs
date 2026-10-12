@@ -1,5 +1,4 @@
 use rusqlite::{params, Connection};
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::SpotterError;
@@ -8,69 +7,10 @@ use crate::models::*;
 /// Track whether migrations have run this session (avoids 37 SQL statements per open).
 static MIGRATED: AtomicBool = AtomicBool::new(false);
 
-/// Raw base path without directory creation.
-/// Linux:   ~/.config/Colony/Spotter/
-/// Windows: AppData/Local/Colony/Spotter/
-/// macOS:   ~/Library/Application Support/Colony/Spotter/
-fn base_path() -> PathBuf {
-    #[cfg(target_os = "windows")]
-    let base = dirs::data_local_dir();
-    #[cfg(not(target_os = "windows"))]
-    let base = dirs::config_dir();
-
-    base.unwrap_or_else(|| PathBuf::from("."))
-        .join("Colony")
-        .join("Spotter")
-}
-
-/// Ensure a directory exists, logging on failure.
-fn ensure_dir(dir: &std::path::Path) {
-    if let Err(e) = std::fs::create_dir_all(dir) {
-        eprintln!("[db] Failed to create directory {:?}: {}", dir, e);
-    }
-}
-
-/// Base directory for all Spotter data.
-pub fn base_dir() -> PathBuf {
-    let dir = base_path();
-    ensure_dir(&dir);
-    dir
-}
-
-/// Data directory (database).
-pub fn data_dir() -> PathBuf {
-    let dir = base_path().join("data");
-    ensure_dir(&dir);
-    dir
-}
-
-/// Cache directory (covers, achievement icons).
-pub fn cache_dir() -> PathBuf {
-    let dir = base_path().join("cache");
-    ensure_dir(&dir);
-    dir
-}
-
-/// Covers cache directory.
-pub fn covers_dir() -> PathBuf {
-    let dir = base_path().join("cache").join("covers");
-    ensure_dir(&dir);
-    dir
-}
-
-/// Exports directory (JSON/CSV backups).
-pub fn exports_dir() -> PathBuf {
-    let dir = base_path().join("exports");
-    ensure_dir(&dir);
-    dir
-}
-
-pub fn db_path() -> PathBuf {
-    data_dir().join("spotter.db")
-}
-
+/// Open the library database, where `paths::layout` puts it.
 pub fn open() -> Result<Connection, SpotterError> {
-    open_inner(db_path().as_ref(), true)
+    let layout = crate::paths::layout().map_err(SpotterError::Other)?;
+    open_inner(&layout.db, true)
 }
 
 /// Open (or create) a database at an explicit path.
@@ -186,6 +126,8 @@ fn init_tables(conn: &Connection) -> Result<(), SpotterError> {
             UNIQUE(steam_appid, platform_id, api_name)
         );
 
+        -- Settings saved by Spotter 0.3 and earlier, read once to import them
+        -- into preferences.json.
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             data TEXT NOT NULL DEFAULT '{}'
@@ -207,7 +149,7 @@ fn init_tables(conn: &Connection) -> Result<(), SpotterError> {
 }
 
 /// Run migrations for existing databases (add columns that might be missing).
-/// ALTER TABLE ADD COLUMN returns an error if the column already exists — that's expected
+/// ALTER TABLE ADD COLUMN returns an error if the column already exists: that's expected
 /// and we intentionally ignore it. Real errors (disk full, corruption) are logged.
 fn migrate(conn: &Connection) {
     let migrations = [
@@ -239,7 +181,7 @@ fn migrate(conn: &Connection) {
             // "duplicate column name" is expected for already-applied migrations.
             // Also check for "duplicate column" to handle different SQLite versions.
             if !msg.contains("duplicate column") && !msg.contains("already exists") {
-                eprintln!("[db] Migration warning: {} — {}", sql, msg);
+                eprintln!("[db] Migration warning: {}: {}", sql, msg);
             }
         }
     }
@@ -602,7 +544,10 @@ pub fn export_games_csv_from_slice(games: &[Game]) -> Result<String, SpotterErro
 
 /// Import games from a JSON backup file, returning the parsed games.
 pub fn import_games_json() -> Result<Vec<Game>, SpotterError> {
-    let import_path = exports_dir().join("spotter_export.json");
+    let import_path = crate::paths::layout()
+        .map_err(SpotterError::Other)?
+        .exports
+        .join("spotter_export.json");
     if !import_path.exists() {
         return Err(SpotterError::Import(format!(
             "No backup file found at {}. Export first, then import.",
@@ -652,51 +597,16 @@ pub fn save_achievements(
     Ok(())
 }
 
-/// Load application settings (returns defaults if not yet saved).
-pub fn load_settings(conn: &Connection) -> Result<Settings, SpotterError> {
-    let mut stmt = conn.prepare("SELECT data FROM settings WHERE id = 1")?;
-
-    let result = stmt.query_row([], |row| row.get::<_, String>(0));
-
-    match result {
-        Ok(json) => parse_settings(&json),
-        Err(_) => Ok(Settings::default()),
-    }
-}
-
-/// Parse stored settings one field at a time: a field whose value this build
-/// does not accept (for example a theme added by a newer version) keeps its
-/// default, so one bad value never discards the other settings.
-fn parse_settings(json: &str) -> Result<Settings, SpotterError> {
-    use serde::Deserialize;
-
-    if let Ok(settings) = serde_json::from_str(json) {
-        return Ok(settings);
-    }
-    let stored: serde_json::Map<String, serde_json::Value> = serde_json::from_str(json)?;
-    let mut merged = serde_json::to_value(Settings::default())?;
-    for (key, value) in stored {
-        let Some(slot) = merged.get_mut(&key) else {
-            continue;
-        };
-        let previous = std::mem::replace(slot, value);
-        if Settings::deserialize(&merged).is_err() {
-            eprintln!("[db] Ignoring invalid stored setting {:?}", key);
-            merged[&key] = previous;
-        }
-    }
-    Ok(Settings::deserialize(&merged)?)
-}
-
-/// Save application settings as JSON.
-pub fn save_settings(conn: &Connection, settings: &Settings) -> Result<(), SpotterError> {
-    let json = serde_json::to_string(settings)?;
-    conn.execute(
-        "INSERT INTO settings (id, data) VALUES (1, ?1)
-         ON CONFLICT(id) DO UPDATE SET data=?1",
-        params![json],
-    )?;
-    Ok(())
+/// The settings Spotter 0.3 and earlier saved in the database, as JSON, if
+/// any. Spotter now keeps them in `preferences.json` and only reads this row
+/// once, to import it (see `crate::preferences`); the row is left as it was.
+pub fn load_legacy_settings(conn: &Connection) -> Result<Option<String>, SpotterError> {
+    use rusqlite::OptionalExtension;
+    Ok(conn
+        .query_row("SELECT data FROM settings WHERE id = 1", [], |row| {
+            row.get(0)
+        })
+        .optional()?)
 }
 
 /// Load all achievements for a given Steam appid, in insertion order.

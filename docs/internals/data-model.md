@@ -44,8 +44,9 @@ Spotter 0.3 and older kept everything under `~/.config/Colony/Spotter/`
 (`Application Support` on macOS, `AppData\Local` on Windows), with the database
 in `data/` and the settings in the database. A newer version copies the
 database, exports and logs from there on its first start, imports the old
-settings row into `preferences.json`, writes a marker so the check runs once,
-and never deletes the old folder. If the copy fails, it keeps using the old
+settings row into `preferences.json`, writes a marker
+(`<data>/.migrated-from-0.3`) so the check runs once, and never deletes the old
+folder. If the copy fails, it keeps using the old
 files where they are (`<config>/data/spotter.db`, `<config>/exports/`,
 `<config>/logs/`) rather than start on an empty library, and tries the copy
 again on the next start. On a system without a usable keyring, the old

@@ -1,5 +1,5 @@
 mod auth;
-mod settings;
+mod preferences;
 
 pub use auth::AuthMessage;
-pub use settings::SettingsMessage;
+pub use preferences::PreferencesMessage;

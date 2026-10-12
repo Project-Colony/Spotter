@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Create an isolated temp dir with a fresh DB connection.
-/// Each call returns a unique path and connection — no global env-var side effects,
+/// Each call returns a unique path and connection: no global env-var side effects,
 /// so tests can safely run in parallel.
 fn setup_test_db() -> (std::path::PathBuf, rusqlite::Connection) {
     let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -227,72 +227,31 @@ fn game_status_display_format() {
     assert_eq!(format!("{}", GameStatus::Dropped), "Dropped");
 }
 
-// ───── Settings tests ─────
+// ───── Preferences tests ─────
 
 #[test]
-fn settings_default_values() {
-    let s = spotter::models::Settings::default();
+fn preferences_default_values() {
+    let s = spotter::models::Preferences::default();
     assert_eq!(s.default_status, spotter::models::GameStatus::Unplayed);
     assert_eq!(s.default_platform, spotter::models::Platform::Steam);
     assert!(s.confirm_before_delete);
     assert_eq!(s.start_screen, spotter::models::StartScreen::Library);
-    assert_eq!(s.theme_mode, spotter::models::ThemeMode::Dark);
-    assert_eq!(s.accent_color, spotter::models::AccentColor::Blue);
+    assert_eq!(
+        s.standard,
+        colony_ui::preferences::StandardPreferences::default()
+    );
     assert!(!s.compact_list);
     assert!(s.show_covers_in_list);
-    assert_eq!(s.ui_scale, spotter::models::UiScale::Normal);
-    assert!(!s.high_contrast);
     assert!(s.show_status_labels);
     assert!(!s.large_click_targets);
 }
 
 #[test]
-fn settings_serde_roundtrip() {
-    let original = spotter::models::Settings::default();
+fn preferences_serde_roundtrip() {
+    let original = spotter::models::Preferences::default();
     let json = serde_json::to_string(&original).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.theme_mode, original.theme_mode);
-    assert_eq!(parsed.accent_color, original.accent_color);
-    assert_eq!(parsed.ui_scale, original.ui_scale);
-    assert_eq!(parsed.compact_list, original.compact_list);
-}
-
-#[test]
-fn ui_scale_factors() {
-    use spotter::models::UiScale;
-    assert!((UiScale::Small.factor() - 0.85).abs() < f32::EPSILON);
-    assert!((UiScale::Normal.factor() - 1.0).abs() < f32::EPSILON);
-    assert!((UiScale::Large.factor() - 1.2).abs() < f32::EPSILON);
-}
-
-// ───── Theme tests ─────
-
-#[test]
-fn theme_mode_bg_card_differs() {
-    use spotter::models::ThemeMode;
-    let dark = ThemeMode::Dark.bg_card();
-    let darker = ThemeMode::Darker.bg_card();
-    let midnight = ThemeMode::Midnight.bg_card();
-    // Each mode should produce different brightness
-    assert!(dark.r > darker.r);
-    assert!(darker.r > midnight.r);
-}
-
-#[test]
-fn view_theme_high_contrast_brighter() {
-    use spotter::models::Settings;
-    use spotter::theme::ViewTheme;
-
-    let mut s = Settings::default();
-    let normal = ViewTheme::from_settings(&s);
-
-    s.high_contrast = true;
-    let hc = ViewTheme::from_settings(&s);
-
-    // High contrast text should be brighter (higher r value)
-    assert!(hc.text_muted.r > normal.text_muted.r);
-    assert!(hc.text_dim.r > normal.text_dim.r);
-    assert!(hc.border.r > normal.border.r);
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed, original);
 }
 
 // ───── DB tests ─────
@@ -381,29 +340,6 @@ fn db_profile_crud() {
 }
 
 #[test]
-fn db_settings_roundtrip() {
-    let (tmp, conn) = setup_test_db();
-
-    // Load defaults
-    let settings = spotter::db::load_settings(&conn).expect("Should load settings");
-    assert_eq!(settings.theme_mode, spotter::models::ThemeMode::Dark);
-
-    // Modify and save
-    let mut s = settings;
-    s.theme_mode = spotter::models::ThemeMode::Midnight;
-    s.high_contrast = true;
-    s.compact_list = true;
-    spotter::db::save_settings(&conn, &s).expect("Should save settings");
-
-    let loaded = spotter::db::load_settings(&conn).expect("Should reload settings");
-    assert_eq!(loaded.theme_mode, spotter::models::ThemeMode::Midnight);
-    assert!(loaded.high_contrast);
-    assert!(loaded.compact_list);
-
-    let _ = std::fs::remove_dir_all(&tmp);
-}
-
-#[test]
 fn db_achievements_roundtrip() {
     let (tmp, conn) = setup_test_db();
 
@@ -471,91 +407,62 @@ fn error_converts_to_string() {
     assert_eq!(s, "Import error: no games found");
 }
 
-// ───── Settings versioning tests ─────
+// ───── Preferences versioning tests ─────
 
 #[test]
-fn db_settings_unknown_value_falls_back_per_field() {
-    let (tmp, conn) = setup_test_db();
-
-    // A theme and an accent this build does not know (as a newer version could
-    // write), next to valid values that must survive.
-    let mut stored = serde_json::to_value(spotter::models::Settings {
-        compact_list: true,
-        high_contrast: true,
-        sidebar_width: 300,
-        ui_scale: spotter::models::UiScale::Large,
-        ..Default::default()
-    })
-    .unwrap();
-    stored["theme_mode"] = "Oled".into();
-    stored["accent_color"] = serde_json::json!(42);
-    conn.execute(
-        "INSERT INTO settings (id, data) VALUES (1, ?1)",
-        [stored.to_string()],
+fn preferences_unknown_value_falls_back_per_field() {
+    // A status this build does not know (as a newer version could write),
+    // next to valid values that must survive.
+    let loaded = spotter::preferences::parse(
+        r#"{"default_status":"Abandoned","compact_list":true,"sidebar_width":300,
+            "high_contrast":true,"text_size_a11y":"large"}"#,
     )
-    .unwrap();
-
-    let loaded = spotter::db::load_settings(&conn).expect("one bad field must not fail the load");
-    assert_eq!(loaded.theme_mode, spotter::models::ThemeMode::Dark);
-    assert_eq!(loaded.accent_color, spotter::models::AccentColor::Blue);
+    .expect("one bad field must not fail the load");
+    assert_eq!(loaded.default_status, spotter::models::GameStatus::Unplayed);
     assert!(loaded.compact_list);
-    assert!(loaded.high_contrast);
     assert_eq!(loaded.sidebar_width, 300);
-    assert_eq!(loaded.ui_scale, spotter::models::UiScale::Large);
-
-    let _ = std::fs::remove_dir_all(&tmp);
+    assert!(loaded.standard.high_contrast);
+    assert_eq!(loaded.standard.text_size_a11y, colony_ui::TextSize::Large);
 }
 
 #[test]
-fn db_settings_missing_required_field_keeps_the_rest() {
-    let (tmp, conn) = setup_test_db();
-    // Old row without theme_mode, which has no serde default of its own.
-    conn.execute(
-        "INSERT INTO settings (id, data) VALUES (1, ?1)",
-        [r#"{"compact_list":true,"start_screen":"Statistics"}"#],
-    )
-    .unwrap();
-
-    let loaded = spotter::db::load_settings(&conn).unwrap();
-    assert_eq!(loaded.theme_mode, spotter::models::ThemeMode::Dark);
+fn preferences_missing_fields_keep_the_rest() {
+    let loaded =
+        spotter::preferences::parse(r#"{"compact_list":true,"start_screen":"Statistics"}"#)
+            .unwrap();
     assert!(loaded.compact_list);
     assert_eq!(
         loaded.start_screen,
         spotter::models::StartScreen::Statistics
     );
-
-    let _ = std::fs::remove_dir_all(&tmp);
+    assert_eq!(loaded.sidebar_width, 220);
 }
 
 #[test]
-fn db_settings_unreadable_json_is_an_error() {
-    let (tmp, conn) = setup_test_db();
-    conn.execute("INSERT INTO settings (id, data) VALUES (1, 'not json')", [])
-        .unwrap();
-    assert!(spotter::db::load_settings(&conn).is_err());
-    let _ = std::fs::remove_dir_all(&tmp);
+fn preferences_unreadable_json_is_an_error() {
+    assert!(spotter::preferences::parse("not json").is_err());
 }
 
 #[test]
-fn settings_default_has_version() {
-    let s = spotter::models::Settings::default();
-    assert_eq!(s.version, spotter::models::SETTINGS_VERSION);
+fn preferences_default_has_version() {
+    let s = spotter::models::Preferences::default();
+    assert_eq!(s.version, spotter::models::PREFERENCES_VERSION);
 }
 
 #[test]
-fn settings_version_survives_serialization() {
-    let original = spotter::models::Settings::default();
+fn preferences_version_survives_serialization() {
+    let original = spotter::models::Preferences::default();
     let json = serde_json::to_string(&original).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.version, spotter::models::SETTINGS_VERSION);
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed.version, spotter::models::PREFERENCES_VERSION);
 }
 
 #[test]
-fn settings_without_version_gets_default() {
+fn preferences_without_version_gets_default() {
     // Simulate old settings JSON without version field
     let json = r#"{"default_status":"Unplayed","default_platform":"Steam","confirm_before_delete":true,"start_screen":"Library","theme_mode":"Dark","accent_color":"Blue","compact_list":false,"show_covers_in_list":true,"ui_scale":"Normal","sidebar_width":220,"high_contrast":false,"show_status_labels":true,"large_click_targets":false}"#;
-    let parsed: spotter::models::Settings = serde_json::from_str(json).unwrap();
-    assert_eq!(parsed.version, spotter::models::SETTINGS_VERSION);
+    let parsed: spotter::models::Preferences = serde_json::from_str(json).unwrap();
+    assert_eq!(parsed.version, spotter::models::PREFERENCES_VERSION);
 }
 
 // ───── CSV export test ─────
@@ -659,7 +566,7 @@ fn date_format_empty_input() {
     // Empty strings and dash-placeholders are passed through as-is
     assert_eq!(DateFormat::Ymd.format_date(""), "");
     assert_eq!(DateFormat::Dmy.format_date(""), "");
-    assert_eq!(DateFormat::Mdy.format_date("—"), "—");
+    assert_eq!(DateFormat::Mdy.format_date("\u{2014}"), "\u{2014}");
 }
 
 // ───── JSON export test ─────
@@ -751,16 +658,6 @@ fn platform_all_includes_six() {
 fn game_status_all_includes_five() {
     let all = spotter::models::GameStatus::all();
     assert_eq!(all.len(), 5);
-}
-
-#[test]
-fn accent_color_all_variants() {
-    let all = spotter::models::AccentColor::all();
-    assert_eq!(all.len(), 6);
-    for ac in all {
-        let c = ac.color();
-        assert!(c.r > 0.0 || c.g > 0.0 || c.b > 0.0);
-    }
 }
 
 #[test]
@@ -857,57 +754,67 @@ fn game_status_icons_non_empty() {
 }
 
 #[test]
-fn platform_colors_non_black() {
+fn platform_colors_are_distinct_shared_accents() {
     use spotter::models::Platform;
     for p in Platform::all() {
-        let c = p.color();
         assert!(
-            c.r > 0.0 || c.g > 0.0 || c.b > 0.0,
-            "Platform {:?} color should not be black",
+            colony_ui::accent_key_to_color(p.accent_key()).is_some(),
+            "Platform {:?} names an accent colony-ui does not ship",
             p
         );
     }
-}
-
-#[test]
-fn game_status_colors_non_black() {
-    use spotter::models::GameStatus;
-    for s in GameStatus::all() {
-        let c = s.color();
-        assert!(
-            c.r > 0.0 || c.g > 0.0 || c.b > 0.0,
-            "GameStatus {:?} color should not be black",
-            s
-        );
+    let colors: Vec<_> = Platform::all().iter().map(|p| p.color()).collect();
+    for (i, a) in colors.iter().enumerate() {
+        for b in &colors[i + 1..] {
+            assert_ne!(a, b, "two platforms share a colour");
+        }
     }
 }
 
-// ───── Settings favorites serialization ─────
+#[test]
+fn game_status_colors_are_distinct_shared_accents() {
+    use spotter::models::GameStatus;
+    for s in GameStatus::all() {
+        assert!(
+            colony_ui::accent_key_to_color(s.accent_key()).is_some(),
+            "GameStatus {:?} names an accent colony-ui does not ship",
+            s
+        );
+    }
+    let colors: Vec<_> = GameStatus::all().iter().map(|s| s.color()).collect();
+    for (i, a) in colors.iter().enumerate() {
+        for b in &colors[i + 1..] {
+            assert_ne!(a, b, "two statuses share a colour");
+        }
+    }
+}
+
+// ───── Preferences favorites serialization ─────
 
 #[test]
-fn settings_favorites_serde_roundtrip() {
-    let settings = spotter::models::Settings {
+fn preferences_favorites_serde_roundtrip() {
+    let prefs = spotter::models::Preferences {
         favorites: vec![1, 42, 100],
         ..Default::default()
     };
-    let json = serde_json::to_string(&settings).unwrap();
-    let parsed: spotter::models::Settings = serde_json::from_str(&json).unwrap();
+    let json = serde_json::to_string(&prefs).unwrap();
+    let parsed: spotter::models::Preferences = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed.favorites, vec![1, 42, 100]);
 }
 
 #[test]
-fn settings_favorites_default_empty() {
-    let settings = spotter::models::Settings::default();
-    assert!(settings.favorites.is_empty());
+fn preferences_favorites_default_empty() {
+    let prefs = spotter::models::Preferences::default();
+    assert!(prefs.favorites.is_empty());
 }
 
-// ───── SortOrder FavoritesFirst display ─────
+// ───── SortOrder FavoritesFirst label ─────
 
 #[test]
-fn sort_order_favorites_first_display() {
+fn sort_order_favorites_first_label() {
     assert_eq!(
-        format!("{}", spotter::models::SortOrder::FavoritesFirst),
-        "Favorites"
+        spotter::models::SortOrder::FavoritesFirst.label(),
+        "Favorites first"
     );
 }
 
