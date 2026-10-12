@@ -74,7 +74,7 @@ fn import_with_token(
         );
     }
 
-    // Step 2b: Fetch launcher assets — this is the primary source used by the
+    // Step 2b: Fetch launcher assets: this is the primary source used by the
     // actual EGS Launcher to list installable games. Free claimed games often
     // appear here even when absent from the library service.
     let launcher_assets = fetch_launcher_assets(&agent, token);
@@ -494,7 +494,7 @@ fn import_with_token(
             }
         }
 
-        // (d) GraphQL searchStore fallback — when all store-content lookups 404'd
+        // (d) GraphQL searchStore fallback: when all store-content lookups 404'd
         let still_needs = pg.game.cover_url.is_empty() && pg.game.description.is_empty();
         if still_needs && !pg.namespace.is_empty() {
             eprintln!(

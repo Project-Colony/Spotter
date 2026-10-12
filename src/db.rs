@@ -149,7 +149,7 @@ fn init_tables(conn: &Connection) -> Result<(), SpotterError> {
 }
 
 /// Run migrations for existing databases (add columns that might be missing).
-/// ALTER TABLE ADD COLUMN returns an error if the column already exists — that's expected
+/// ALTER TABLE ADD COLUMN returns an error if the column already exists: that's expected
 /// and we intentionally ignore it. Real errors (disk full, corruption) are logged.
 fn migrate(conn: &Connection) {
     let migrations = [
@@ -181,7 +181,7 @@ fn migrate(conn: &Connection) {
             // "duplicate column name" is expected for already-applied migrations.
             // Also check for "duplicate column" to handle different SQLite versions.
             if !msg.contains("duplicate column") && !msg.contains("already exists") {
-                eprintln!("[db] Migration warning: {} — {}", sql, msg);
+                eprintln!("[db] Migration warning: {}: {}", sql, msg);
             }
         }
     }

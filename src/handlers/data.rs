@@ -460,7 +460,7 @@ impl Spotter {
         let mut updated = 0;
 
         for game in new_games {
-            // Lookup by platform ID — HashMap<String>::get accepts &str via Borrow
+            // Lookup by platform ID: HashMap<String>::get accepts &str via Borrow
             let idx_opt = game
                 .steam_appid
                 .and_then(|id| steam_idx.get(&id))

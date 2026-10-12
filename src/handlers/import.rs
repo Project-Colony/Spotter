@@ -1,19 +1,19 @@
-//! Import message handlers — Steam, GOG, Epic, Xbox, PlayStation, JSON.
+//! Import message handlers: Steam, GOG, Epic, Xbox, PlayStation, JSON.
 //!
 //! Each platform follows the same dispatch pattern:
 //!
-//! 1. **Trigger** — `Message::Import{Platform}` from the UI starts the import.
-//! 2. **Guard** — the handler checks auth prerequisites and dedup (`importing` set).
-//! 3. **Spawn** — a background `spawn_task` calls the platform module's
+//! 1. **Trigger**: `Message::Import{Platform}` from the UI starts the import.
+//! 2. **Guard**: the handler checks auth prerequisites and dedup (`importing` set).
+//! 3. **Spawn**: a background `spawn_task` calls the platform module's
 //!    `full_import(auth_params...)` and maps the result to a `*Complete` message.
-//! 4. **Complete** — the `*Complete` handler calls `handle_import_result()` which
+//! 4. **Complete**: the `*Complete` handler calls `handle_import_result()` which
 //!    merges games, persists, starts the cascade animation, and triggers cover
 //!    downloads.
 //!
 //! Auth is separate (`handlers/auth.rs` + `messages::AuthMessage`) and handles
 //! login flows, code exchange, and proactive token refresh at startup.
 //!
-//! No shared `PlatformImporter` trait — each platform has different auth params
+//! No shared `PlatformImporter` trait: each platform has different auth params
 //! and flows, so the dispatch is kept explicit here.
 
 use std::collections::HashMap;

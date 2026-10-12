@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// Create an isolated temp dir with a fresh DB connection.
-/// Each call returns a unique path and connection — no global env-var side effects,
+/// Each call returns a unique path and connection: no global env-var side effects,
 /// so tests can safely run in parallel.
 fn setup_test_db() -> (std::path::PathBuf, rusqlite::Connection) {
     let id = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -566,7 +566,7 @@ fn date_format_empty_input() {
     // Empty strings and dash-placeholders are passed through as-is
     assert_eq!(DateFormat::Ymd.format_date(""), "");
     assert_eq!(DateFormat::Dmy.format_date(""), "");
-    assert_eq!(DateFormat::Mdy.format_date("—"), "—");
+    assert_eq!(DateFormat::Mdy.format_date("\u{2014}"), "\u{2014}");
 }
 
 // ───── JSON export test ─────

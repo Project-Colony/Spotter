@@ -8,7 +8,7 @@ use crate::models::*;
 struct XblTitleHistory {
     #[serde(default)]
     titles: Vec<XblTitle>,
-    /// Continuation token for pagination — present when more results are available.
+    /// Continuation token for pagination: present when more results are available.
     #[serde(alias = "continuationToken")]
     continuation_token: Option<String>,
 }
@@ -232,7 +232,7 @@ fn fetch_achievements_x360(
         2,
     )?;
 
-    // Parse as generic JSON — the x360 format uses different field types/names
+    // Parse as generic JSON: the x360 format uses different field types/names
     let json: serde_json::Value =
         serde_json::from_str(&body).map_err(|e| format!("x360 parse error: {}", e))?;
 
@@ -337,7 +337,7 @@ fn fetch_marketplace_details(
     }
 
     // The marketplace endpoint uses product IDs, not title IDs.
-    // Try sending title IDs — if the API doesn't recognize them, we get empty results (harmless).
+    // Try sending title IDs: if the API doesn't recognize them, we get empty results (harmless).
     let products_param = title_ids.join(",");
     let url = "https://xbl.io/api/v2/marketplace/details";
 
@@ -524,7 +524,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
         let release_date = meta.map(|m| m.release_date.clone()).unwrap_or_default();
 
         // Fetch detailed achievements if we have a XUID.
-        // Always try — the title history often reports 0 achievements even for
+        // Always try: the title history often reports 0 achievements even for
         // games that have them (especially Xbox 360 titles).
         let (ach_unlocked, ach_total) = if !xuid.is_empty() {
             // Try modern endpoint first
@@ -534,7 +534,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
                     Ok(d)
                 }
                 modern_result => {
-                    // Modern endpoint returned empty or error — try x360 endpoint.
+                    // Modern endpoint returned empty or error: try x360 endpoint.
                     // Many older titles (Fable II, Fallout 3, etc.) only return data
                     // from the x360 endpoint, even when not tagged as "Xbox360" in devices.
                     eprintln!(
@@ -574,7 +574,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
                     }
 
                     eprintln!(
-                        "[xbox] [{}/{}] {} — {} achievements ({} unlocked)",
+                        "[xbox] [{}/{}] {}: {} achievements ({} unlocked)",
                         i + 1,
                         total,
                         title.name,
@@ -586,7 +586,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
                 }
                 Ok(_) => {
                     eprintln!(
-                        "[xbox] [{}/{}] {} — no achievements",
+                        "[xbox] [{}/{}] {}: no achievements",
                         i + 1,
                         total,
                         title.name
@@ -595,7 +595,7 @@ pub fn full_import(api_key: &str) -> Result<(Vec<Game>, Option<String>), String>
                 }
                 Err(e) => {
                     eprintln!(
-                        "[xbox] [{}/{}] {} — achievement fetch failed: {}",
+                        "[xbox] [{}/{}] {}: achievement fetch failed: {}",
                         i + 1,
                         total,
                         title.name,

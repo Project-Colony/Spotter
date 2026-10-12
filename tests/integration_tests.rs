@@ -1415,7 +1415,7 @@ mod import_logger {
             .join("spotter_log_test_nonexistent")
             .join("deeply")
             .join("nested");
-        // Don't create the directory — logger should fail gracefully
+        // Don't create the directory: logger should fail gracefully
         let logger = ImportLogger::new(&dir);
         // This should not panic, just print to stderr
         logger.log("test", "Should not crash");

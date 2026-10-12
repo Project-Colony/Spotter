@@ -302,7 +302,7 @@ pub fn full_import(npsso: &str) -> Result<Vec<Game>, String> {
     let logger = crate::api_client::ImportLogger::for_imports();
     logger.log("psn", "Starting PlayStation import");
 
-    // Fetch trophy titles (primary source — has achievement data)
+    // Fetch trophy titles (primary source: has achievement data)
     eprintln!("[psn] Fetching trophy titles...");
     let trophy_titles = fetch_trophy_titles(&access_token)?;
     eprintln!("[psn] Found {} trophy titles", trophy_titles.len());

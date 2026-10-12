@@ -189,7 +189,7 @@ pub fn view(app: &Spotter, game_id: i64) -> Element<'_, Message> {
 
     let info_section = info_card(t("detail_info"), info_col);
 
-    // Achievements section — summary + individual list
+    // Achievements section: summary + individual list
     let ach_display = app.preferences.achievements_display;
     let achievements_section = if app.achievements_loading {
         info_card(

@@ -134,7 +134,7 @@ impl ImportLogger {
             }
         };
 
-        // Rotate if needed — check size and rename, then drop the old handle
+        // Rotate if needed: check size and rename, then drop the old handle
         if let Ok(meta) = std::fs::metadata(log_path) {
             if meta.len() >= self.max_size {
                 // Drop the old file handle before renaming

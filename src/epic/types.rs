@@ -13,7 +13,7 @@ pub(super) struct LibraryRecord {
     /// Can sometimes be used as a store slug for metadata lookup.
     #[serde(alias = "productId", default)]
     pub product_id: String,
-    /// Sandbox name (e.g. "Live", "UE Marketplace") — useful for filtering.
+    /// Sandbox name (e.g. "Live", "UE Marketplace"): useful for filtering.
     #[serde(alias = "sandboxName", default)]
     #[allow(dead_code)]
     pub sandbox_name: String,

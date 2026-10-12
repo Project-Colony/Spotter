@@ -132,7 +132,7 @@ fn verify_openid_signature(query: &str) -> Result<(), String> {
 }
 
 /// Perform Steam OpenID login flow:
-/// 1. Start a local HTTP server (tries ports 29876–29880)
+/// 1. Start a local HTTP server (tries ports 29876-29880)
 /// 2. Open the Steam login page in the user's browser
 /// 3. Wait for the callback with the Steam ID
 /// 4. Return the Steam ID 64

@@ -57,7 +57,7 @@ fn make_agent() -> ureq::Agent {
     crate::api_client::api_agent()
 }
 
-/// HTTP GET with one retry — used for the Steam Web API (owned games).
+/// HTTP GET with one retry: used for the Steam Web API (owned games).
 fn http_get_with_retry(agent: &ureq::Agent, url: &str) -> Result<String, String> {
     crate::api_client::http_get_retry(agent, url, 1)
 }
@@ -65,7 +65,7 @@ fn http_get_with_retry(agent: &ureq::Agent, url: &str) -> Result<String, String>
 // ───── HTML scraping helpers ─────
 
 /// Decode common HTML entities in scraped text (single pass, no intermediate Strings).
-/// Used only in tests — scraper handles entity decoding automatically in production.
+/// Used only in tests: scraper handles entity decoding automatically in production.
 #[allow(dead_code)]
 fn decode_html_entities(s: &str) -> String {
     if !s.contains('&') {
@@ -382,7 +382,7 @@ pub fn scrape_achievements(
     let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
               (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-    // 1. Scrape global page — all achievements with colored icons
+    // 1. Scrape global page: all achievements with colored icons
     let global_url = format!("https://steamcommunity.com/stats/{}/achievements", appid);
     let global_html = match agent.get(&global_url).header("User-Agent", ua).call() {
         Ok(r) => r
@@ -416,7 +416,7 @@ pub fn scrape_achievements(
         });
     }
 
-    // 2. Scrape player page — unlock status, descriptions, unlock times
+    // 2. Scrape player page: unlock status, descriptions, unlock times
     let player_url = format!(
         "https://steamcommunity.com/profiles/{}/stats/appid/{}/achievements/",
         steam_id, appid
@@ -433,7 +433,7 @@ pub fn scrape_achievements(
                 parse_player_achievements(&html)
             }
         }
-        Err(_) => HashMap::new(), // Profile unavailable — treat all as locked
+        Err(_) => HashMap::new(), // Profile unavailable: treat all as locked
     };
 
     // 3. Combine: global page provides the full list + icons,
@@ -483,7 +483,7 @@ pub fn scrape_achievements(
 }
 
 /// Scrape a Steam store page to extract genre, tags, description,
-/// release date, and review percentage — all in a single HTTP request.
+/// release date, and review percentage: all in a single HTTP request.
 /// Sends cookies to bypass age gates for mature-rated games.
 fn scrape_store_page(agent: &ureq::Agent, appid: u32) -> Result<ScrapedData, String> {
     let url = format!("https://store.steampowered.com/app/{}/", appid);
@@ -511,7 +511,7 @@ fn scrape_store_page(agent: &ureq::Agent, appid: u32) -> Result<ScrapedData, Str
         return Err("Blocked by age gate".into());
     }
 
-    // Cover image — og:image meta tag (most reliable, always present)
+    // Cover image: og:image meta tag (most reliable, always present)
     let cover_url = extract_meta_content(&html, "og:image");
     if cover_url.is_none() {
         eprintln!(
@@ -520,7 +520,7 @@ fn scrape_store_page(agent: &ureq::Agent, appid: u32) -> Result<ScrapedData, Str
         );
     }
 
-    // Genres — from links like <a href="...genre/Action/...">Action</a>
+    // Genres: from links like <a href="...genre/Action/...">Action</a>
     let genre_list = extract_anchors(&html, r#"a[href*="/genre/"]"#);
     if genre_list.is_empty() && !html.contains("game_area_genre") {
         eprintln!(
@@ -530,7 +530,7 @@ fn scrape_store_page(agent: &ureq::Agent, appid: u32) -> Result<ScrapedData, Str
     }
     let genre = genre_list.join(", ");
 
-    // User-defined tags — from <a class="app_tag" ...>RPG</a>
+    // User-defined tags: from <a class="app_tag" ...>RPG</a>
     let tag_list = extract_anchors(&html, "a.app_tag");
     if tag_list.is_empty() && !html.contains("app_tag") {
         eprintln!(
@@ -540,7 +540,7 @@ fn scrape_store_page(agent: &ureq::Agent, appid: u32) -> Result<ScrapedData, Str
     }
     let tags = tag_list.join(", ");
 
-    // Short description — try HTML div first, fall back to og:description meta tag
+    // Short description: try HTML div first, fall back to og:description meta tag
     let description = extract_div_text(&html, "game_description_snippet")
         .or_else(|| extract_meta_content(&html, "og:description"))
         .unwrap_or_default();
@@ -621,7 +621,7 @@ pub fn full_import(
     let games = Arc::new(Mutex::new(games));
     let progress = Arc::new(AtomicUsize::new(0));
     let failed = Arc::new(Mutex::new(Vec::<String>::new()));
-    // AtomicUsize counter replaces Mutex<Vec<usize>> queue — no lock contention
+    // AtomicUsize counter replaces Mutex<Vec<usize>> queue: no lock contention
     let next_idx = Arc::new(AtomicUsize::new(0));
 
     let mut handles = Vec::new();
@@ -775,7 +775,7 @@ pub fn full_import(
                     // Don't log every skipped game to avoid spam
                 } else {
                     // Read title from locked games only for logging (avoids cloning
-                    // all titles upfront — saves ~150KB+ for large libraries)
+                    // all titles upfront: saves ~150KB+ for large libraries)
                     let title = games.lock().map(|g| g[i].title.clone()).unwrap_or_default();
                     if warnings.is_empty() {
                         eprintln!("[steam] [{}/{}] {}", done, total, title);
@@ -884,7 +884,7 @@ mod tests {
 
     #[test]
     fn extract_anchors_with_nested_tags() {
-        // scraper collects text recursively — nested elements are handled correctly.
+        // scraper collects text recursively: nested elements are handled correctly.
         let html = r#"<a href="/genre/Action/"><span>Action</span></a>"#;
         let genres = extract_anchors(html, r#"a[href*="/genre/"]"#);
         assert_eq!(genres, vec!["Action"]);
