@@ -24,14 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Pinned to master with an explicit toolchain rather than to the
-      # `stable` branch: that branch is rebased onto every master commit, so a
-      # SHA pinned on it stops being reachable from any branch.
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
-        with:
-          toolchain: stable
-          components: clippy, rustfmt
+      # rustup is on every GitHub-hosted runner image, so there is no
+      # third-party toolchain action to pin. bash keeps the same step working
+      # on the Windows and macOS legs.
+      - name: Install Rust
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt --no-self-update
+          rustup default stable
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -91,10 +91,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
-        with:
-          toolchain: "1.90"
+      - name: Install Rust 1.90
+        shell: bash
+        run: |
+          rustup toolchain install 1.90 --profile minimal --no-self-update
+          rustup default 1.90
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
