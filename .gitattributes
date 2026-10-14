@@ -1,7 +1,7 @@
 # Normalize line endings: always LF in the repo, checkout as-is on all platforms
 * text=auto eol=lf
 
-# Binaries — no conversion
+# Binaries: no conversion
 *.png binary
 *.jpg binary
 *.ico binary

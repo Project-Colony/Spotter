@@ -1,148 +1,229 @@
-# Spotter
+<div align="center">
 
-A cross-platform game library tracker and statistics dashboard built with [Rust](https://www.rust-lang.org/) and [Iced](https://iced.rs).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/icons/icon.png">
+  <img src="assets/icons/icon.png" alt="Spotter" width="96">
+</picture>
 
-## Features
+**A local game library and statistics tracker for players whose games are spread across Steam, GOG, Epic Games, Xbox and PlayStation.**
 
-- **Multi-platform imports** - Steam, GOG, Epic Games, Xbox (via OpenXBL), and PlayStation Network
-- **Achievement tracking** - view and track achievements with icons, descriptions, and unlock dates
-- **Statistics dashboard** - playtime charts, status/platform distribution, most played games
-- **Customizable UI** - the shared Colony themes and accents, two text sizes, sidebar width, compact mode
-- **Accessibility** - high contrast, a dyslexia-friendly font, reduced motion, large click targets, status labels
-- **Preferences** - language, date format, notifications, start screen, default status/platform
-- **English and French** - the interface follows the system language, or the one picked in Preferences
-- **Local-first** - all data stored in a local SQLite database, no cloud dependency
+</div>
 
-## Running the binaries
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![Colony app](https://img.shields.io/badge/Colony-game-purple)](https://github.com/Project-Colony/Colony)
+[![Platforms](https://img.shields.io/badge/platforms-linux%20%7C%20windows%20%7C%20macOS-lightgrey)](#installation)
 
-The easiest way to install Spotter is through [Colony](https://github.com/Project-Colony/Colony), which downloads the right binary and checks its signature for you.
+Your games are spread across five stores, each with its own launcher, its own
+playtime counter and its own idea of what you finished. Spotter imports them
+into one SQLite database on your own machine, keeps your status, rating and
+notes for every game across re-imports, and turns the result into playtime and
+completion statistics. Nothing leaves your computer except the requests to the
+stores you import from.
 
-To run a release by hand, download the asset for your system from the [latest release](https://github.com/Project-Colony/Spotter/releases/latest):
+> **Status:** every importer is tested against recorded Steam, GOG, Epic,
+> Xbox and PlayStation responses, not against live accounts. Only Steam's Web
+> API and OpenXBL are documented APIs: the Steam store and achievement pages
+> are scraped, and the GOG, Epic and PlayStation endpoints are the ones their
+> own clients use, so a store can break an import without notice until the
+> next release. Platform tokens live in the operating system's keyring since
+> 0.3.0. Every
+> release asset is signed with the Project Colony ed25519 key; the Windows
+> executable has no Authenticode signature yet, pending SignPath Foundation
+> approval. The Colony Preferences page, the French translation and the move
+> to the standard Colony folders are covered by unit tests and still need a
+> check on a real desktop install.
 
-| Asset | System |
+## Why Spotter
+
+- **Every store, one list.** Steam, GOG, Epic Games, Xbox (through OpenXBL)
+  and PlayStation Network imports land in the same library, and Nintendo games
+  are added by hand. Each store's launcher only shows its own games.
+- **Your data stays yours.** The library is a local SQLite file. There is no
+  account, no sync server and no telemetry; exports are plain JSON and CSV.
+- **Re-import without losing anything.** A second import updates playtime,
+  achievements and store details, and never touches the status, rating or
+  notes you set.
+- **Tokens in the keyring.** API keys and login tokens go to Windows Credential
+  Manager, the macOS Keychain or the Secret Service. Only a system without a
+  usable keyring falls back to a file, and Spotter tells you when it does.
+
+```
+Steam ─┐
+GOG ───┤
+Epic ──┼──► import + merge ──► spotter.db ──► library, statistics, exports
+Xbox ──┤                         (local)
+PSN ───┘        Nintendo: added by hand
+```
+
+## What it does
+
+- **Imports** from Steam (Web API key, Steam login), GOG (browser login), Epic
+  Games (account login for the whole library, or a scan of the games installed
+  through the Epic Games Launcher or Legendary), Xbox (an OpenXBL API key) and
+  PlayStation Network (an NPSSO token).
+- **Merges** each import into the existing library by store id, then by title,
+  so importing again does not duplicate your games.
+- **Achievements**: the full list with unlock dates for Steam and Xbox (with
+  icons for Steam), trophy counts for PlayStation, the total for Epic Games.
+- **Statistics**: totals, average rating, playtime over the last 30 days,
+  this month against last month, status and platform distribution, and the
+  most played games.
+- **Library tools**: search, status and platform filters, six sort orders,
+  favourites, ratings, notes, and manual entries.
+- **Backups**: JSON and CSV export, JSON import, and an automatic JSON backup
+  after every import.
+- **Colony Preferences**: the shared Colony themes and accents, high contrast,
+  a dyslexia-friendly font, text scaling, reduced motion, and an English or
+  French interface.
+
+## Installation
+
+### Via Colony (recommended)
+
+Search for **Spotter** in [Colony](https://github.com/Project-Colony/Colony)
+and install it. Colony checks the release signature before it installs, and
+updates arrive through the launcher.
+
+### Direct binary download
+
+Grab the asset for your platform from the
+[latest release](https://github.com/Project-Colony/Spotter/releases/latest):
+
+| Platform | Asset |
 |---|---|
-| `spotter-linux` | Linux x86_64 |
-| `spotter-windows.exe` | Windows x86_64 |
-| `spotter-macos-arm` | macOS on Apple silicon |
-| `spotter-macos-x86` | macOS on Intel |
-
-Each asset has a matching `.sig` file, an ed25519 signature made with the Project-Colony release key, and a signed `.meta` file binding it to its version.
-
-- **Linux**: `chmod +x spotter-linux && ./spotter-linux`. It needs a Wayland or X11 session and libxkbcommon, which every desktop distribution ships.
-- **Windows**: run `spotter-windows.exe`. Until it carries an Authenticode signature (see [Code signing policy](#code-signing-policy)), SmartScreen may ask you to confirm with **More info** then **Run anyway**.
-- **macOS**: `chmod +x spotter-macos-arm && xattr -d com.apple.quarantine spotter-macos-arm && ./spotter-macos-arm` (use `spotter-macos-x86` on Intel). The binary is not notarized, so Gatekeeper blocks it until the quarantine attribute is removed.
-
-`spotter --version` prints the version and exits without opening a window.
-
-## Building
-
-Requires Rust 1.90+ (2021 edition).
+| Linux | `spotter-linux` |
+| Windows | `spotter-windows.exe` |
+| macOS (Apple Silicon) | `spotter-macos-arm` |
+| macOS (Intel) | `spotter-macos-x86` |
 
 ```bash
+chmod +x spotter-linux && ./spotter-linux
+```
+
+- **Linux** needs a Wayland or X11 session and libxkbcommon, which every
+  desktop distribution ships.
+- **Windows**: until the executable carries an Authenticode signature,
+  SmartScreen may ask you to confirm with **More info** then **Run anyway**.
+- **macOS**: the binary is not notarized, so remove the quarantine attribute
+  first:
+  `chmod +x spotter-macos-arm && xattr -d com.apple.quarantine spotter-macos-arm && ./spotter-macos-arm`
+  (use `spotter-macos-x86` on Intel).
+
+`spotter --version` prints the version and exits without opening a window.
+To connect your stores, see
+[docs/guide/platform-setup.md](docs/guide/platform-setup.md).
+
+### Build from source
+
+```bash
+git clone https://github.com/Project-Colony/Spotter
+cd Spotter
 cargo build --release
 ```
 
-The binary will be at `target/release/spotter`.
+Requires Rust 1.90 or newer. On Linux, install the windowing and keyring
+development packages first; the list is in
+[docs/internals/development.md](docs/internals/development.md).
 
-## Running
+## Documentation
 
-```bash
-cargo run
-```
-
-On first launch, Spotter creates a sample library. To import your own games, go to **Import** and configure your platform credentials in **Profile**.
-
-### Platform Setup
-
-| Platform | Credential needed | Where to get it |
-|---|---|---|
-| Steam | API Key + Steam ID | [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey) - or use the "Login with Steam" button |
-| GOG | OAuth token | GOG Galaxy client settings |
-| Epic | - | Auto-scans local Epic Games Launcher |
-| Xbox | OpenXBL API key | [xbl.io](https://xbl.io) |
-| PlayStation | NPSSO token | Browser cookies at [store.playstation.com](https://store.playstation.com) |
-| Nintendo | - | Manual entry (no import API) |
-
-## Testing
-
-```bash
-cargo test -- --test-threads=1
-```
-
-Single-threaded execution is required because database tests use shared environment state (`XDG_DATA_HOME`).
-
-## Project Structure
-
-```
-src/
-  main.rs          Entry point
-  lib.rs           Module tree; public modules for tests
-  app.rs           Application state, messages, update loop
-  db.rs            SQLite database operations
-  paths.rs         Where Spotter's files live, and the copy from Spotter 0.3
-  preferences.rs   preferences.json: load, save, import from Spotter 0.3
-  keyring.rs       Platform tokens in the OS keyring
-  models.rs        Data structures (Game, Platform, Preferences, etc.)
-  i18n/            Interface strings: en.json, fr.json and the lookup
-  theme.rs         Icons and style helpers on the Colony palette
-  steam.rs         Steam import + HTML scraping
-  steam_auth.rs    Steam browser login flow
-  gog.rs           GOG Galaxy import
-  epic.rs          Epic Games Launcher scanner
-  xbox.rs          Xbox Live import via OpenXBL
-  playstation.rs   PSN import via trophy API
-  images.rs        Cover art + achievement icon caching
-  views/           UI views (library, detail, stats, preferences, etc.)
-tests/
-  unit_tests.rs    Unit + integration tests
-```
-
-## Data Storage
-
-All data is stored locally, under `Colony/Spotter/` in the platform's folders:
-
-| | Linux | Windows | macOS |
-|---|---|---|---|
-| Config | `~/.config/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
-| Data | `~/.local/share/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\` | `~/Library/Application Support/Colony/Spotter/` |
-| Cache | `~/.cache/Colony/Spotter/` | `%LOCALAPPDATA%\Colony\Spotter\cache\` | `~/Library/Caches/Colony/Spotter/` |
-
-- **Preferences**: `<config>/preferences/preferences.json`
-- **Library database**: `<data>/library/spotter.db` (SQLite)
-- **Exports and the automatic backup**: `<data>/exports/`
-- **Import log**: `<data>/logs/import.log`
-- **Covers and achievement icons**: `<cache>/covers/` and `<cache>/achievement_icons/`, downloaded again when deleted
-- **Platform credentials** (API keys, login tokens): in the operating system's keyring (Windows Credential Manager, macOS Keychain, the Secret Service on Linux). Without one, they are kept unencrypted in `<config>/credentials/tokens.json`, readable by your user only, and the Profile page says so.
-
-Spotter 0.3 and earlier kept everything in the config folder (`data/`, `exports/`, `logs/`, `cache/`). The first start of a newer Spotter copies the library, the exports and the log to the folders above, imports the settings from the old database into `preferences.json`, and leaves the old files where they are.
+Full documentation is in [docs/](docs/). Start at
+[docs/README.md](docs/README.md).
 
 ## Code signing policy
 
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Every release asset is signed by the Project Colony organisation in CI, never on
+a developer machine. Next to each asset on the release page:
 
-Windows builds are signed through SignPath once the SignPath Foundation has accepted the project; until then they ship without Authenticode. Every release asset, on every platform, is always signed with the Project-Colony organisation's ed25519 key, which Colony verifies before installing it.
+| File | What it is |
+|---|---|
+| `<asset>.sig` | an ed25519 signature over the asset, made with the organisation's release key |
+| `<asset>.meta` | three lines binding the asset to its file name, its sha256 and the release version |
+| `<asset>.meta.sig` | an ed25519 signature over the `.meta` |
 
-Team roles and members:
+The private key is an organisation secret, used only by the shared
+[sign-and-publish workflow](https://github.com/Project-Colony/Project-Colony-Resources/blob/main/.github/workflows/sign-and-publish.yml)
+in a job that builds nothing; the jobs that compile Spotter never see it.
+Colony checks all three files before it installs or updates Spotter, and
+refuses a release older than the one installed. To check a download yourself
+with OpenSSL 3 (the same commands work for every asset):
+
+```bash
+cat > colony-release.pub <<'EOF'
+-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEARNjg3Nn8H6/aBg1unwGjkUTcrdTxERNefVaqU8cFu0s=
+-----END PUBLIC KEY-----
+EOF
+a=spotter-linux
+openssl pkeyutl -verify -pubin -inkey colony-release.pub -rawin -in "$a" -sigfile "$a.sig"
+openssl pkeyutl -verify -pubin -inkey colony-release.pub -rawin -in "$a.meta" -sigfile "$a.meta.sig"
+cat "$a.meta"     # version=<tag>, asset=<file name>, sha256=<digest>
+sha256sum "$a"    # the digest must equal the sha256 line
+```
+
+How releases are built, signed and published:
+[design/releases.md](https://github.com/Project-Colony/Project-Colony-Resources/blob/main/design/releases.md#5-signing).
+
+<!--
+Add the following only once SignPath signs the Windows build, that is once
+`signpath-project-slug` is set in .github/workflows/release.yml. Before that it
+would promise a signature the .exe does not carry.
+
+Windows releases are also Authenticode-signed. Free code signing provided by
+[SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
 
 - Committers and reviewers: [MotherSphere](https://github.com/MotherSphere)
 - Approvers: [MotherSphere](https://github.com/MotherSphere)
+-->
 
-### Privacy policy
+## Privacy
 
-Spotter has no telemetry, no analytics and no update check, and sends nothing to its developers. Your library stays in the local database. Your platform credentials (the API keys you enter and the login tokens Spotter receives) are kept in your operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux, such as GNOME Keyring or KWallet); when no keyring is available, Spotter keeps them unencrypted in a file of its config folder that only your user can read instead, and says so on its Profile page. Spotter only contacts the services below, for the features that need them:
+Spotter sends no telemetry, no analytics and no crash reports, has no update
+check, and sends nothing to its developers. It contacts a store only when you
+use a feature that needs it.
 
-- **Imports, when you start one** from the Import screen. Spotter contacts the platform you picked and sends it the credentials you entered for it, plus the ids of your games:
-  - Steam: `api.steampowered.com` (your Web API key and Steam ID, to list owned games), `steamcommunity.com` (your Steam ID, to read achievements from your profile) and `store.steampowered.com` (game details).
-  - GOG: `auth.gog.com` (the login code you paste, exchanged for a token), then `embed.gog.com` and `api.gog.com` with that token.
-  - Epic Games: `account-public-service-prod.ol.epicgames.com` (the login code you paste, exchanged for a token), then Epic's library, catalog, entitlement and launcher services and `store.epicgames.com` with that token and your account id. The Epic Games Launcher scan reads your installed games from disk, then asks Epic's store for their details.
-  - Xbox: `xbl.io` (your OpenXBL API key).
-  - PlayStation: `ca.account.sony.com` (your NPSSO token, exchanged for an access token), then `m.np.playstation.com` with that token.
-- **Steam login**, when you use it: Spotter opens Steam's sign-in page in your browser, receives the answer on a local port of your own computer (127.0.0.1) and asks `steamcommunity.com` to confirm it.
-- **Cover art and achievement icons**, downloaded from the image addresses stored with each game, which come from those platforms (or from a JSON backup you import): covers after an import, unless you turn off automatic cover downloads in Preferences; achievement icons when you open a Steam game's page.
-- **At startup**, if you have connected GOG or Epic Games, Spotter renews that login automatically by sending the saved refresh token to `auth.gog.com` or `account-public-service-prod.ol.epicgames.com`.
+| Data | Stored or sent | Where, and why |
+|---|---|---|
+| Your library | stored | `library/spotter.db` in Spotter's data folder: games, playtime history, achievements, your profile name and connected account ids |
+| Preferences | stored | `preferences/preferences.json` in Spotter's config folder |
+| Credentials | stored | your Steam API key, OpenXBL key, PlayStation NPSSO token and the GOG and Epic login tokens, in the operating system's keyring (Windows Credential Manager, macOS Keychain, or the Secret Service on Linux such as GNOME Keyring or KWallet). Without a usable keyring they are written unencrypted to `credentials/tokens.json` in the config folder (owner-only on Linux and macOS), or, if that file cannot be written, kept unencrypted in the library database until a later start can move them; the Profile page says when the keyring is not used |
+| Exports and backups | stored | `exports/` in the data folder: `spotter_export.json` and `spotter_export.csv` when you export, `spotter_auto_backup.json` after every import |
+| Import log | stored | `logs/import.log` in the data folder (rotated to `import.log.1` at 5 MB): import steps, game counts and errors, plus your Xbox user id |
+| Covers and achievement icons | stored | `covers/` and `achievement_icons/` in Spotter's cache folder; safe to delete, they are downloaded again |
+| Steam import | sent | when you import: your Web API key and Steam ID to `api.steampowered.com` (owned games), your Steam ID to `steamcommunity.com` (achievements) and game ids to `store.steampowered.com` (store details) |
+| Steam login | sent | when you click Login: Steam's sign-in page opens in your browser, the answer comes back to a listener on `127.0.0.1` (ports 29876 to 29880) of your own computer, and Spotter asks `steamcommunity.com` to confirm it |
+| GOG import | sent | when you log in: the code you paste goes to `auth.gog.com` in exchange for a token; when you import, that token goes to `embed.gog.com` (your games) and game ids to `api.gog.com` (store details) |
+| Epic Games import | sent | when you log in: the code you paste goes to `account-public-service-prod.ol.epicgames.com`; when you import, the token and your account id go to Epic's library, entitlement, launcher and catalog services (`*.epicgames.com`), and game ids to `store.epicgames.com` and `store-content-ipv4.ak.epicgames.com`. The local scan reads installed games from disk, then asks the store for their details |
+| Xbox import | sent | your OpenXBL API key to `xbl.io` (titles, achievements, store details) |
+| PlayStation import | sent | your NPSSO token to `ca.account.sony.com` in exchange for an access token, then that token to `m.np.playstation.com` (trophies and played games) |
+| Token renewal | sent | at startup if GOG or Epic Games is connected, and when an import finds the login expired: the saved refresh token to `auth.gog.com` or `account-public-service-prod.ol.epicgames.com` |
+| Images | sent | requests for the cover and achievement image addresses stored with each game, which come from those stores (or from a JSON backup you import): covers after an import unless automatic cover downloads are off, Steam achievement icons during a Steam import and when you open a Steam game |
 
-Links such as a game's store page open in your browser; Spotter itself sends nothing for them.
+The config, data and cache folders are `Colony/Spotter/` under your system's
+config, data and cache directories; the full table per operating system is in
+[docs/internals/data-model.md](docs/internals/data-model.md#where-the-data-lives).
+If copying the files of Spotter 0.3 or older fails, Spotter keeps using the old
+files in the config folder (`data/spotter.db`, `exports/`, `logs/`). The 0.3
+folder is never deleted for you: on a system without a usable keyring, its old
+database still holds your tokens unencrypted until you delete it.
+
+Spotter connects to no server except the ones in this table, and only for the
+action named there. Links such as a game's store page open in your browser;
+Spotter itself sends nothing for them. Each store's own privacy policy covers
+what it does with those requests:
+[Steam](https://store.steampowered.com/privacy_agreement/),
+[GOG](https://support.gog.com/hc/articles/212632109-Privacy-Policy?product=gog),
+[Epic Games](https://www.epicgames.com/site/privacypolicy),
+[OpenXBL](https://xbl.io/agreement),
+[PlayStation](https://www.playstation.com/legal/privacy-policy/).
 
 ## License
 
-GPL-3.0-or-later - see [LICENSE](LICENSE).
+GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+The interface fonts come with
+[colony-ui](https://github.com/Project-Colony/Project-Colony-Resources/tree/main/crates/colony-ui):
+JetBrains Mono Nerd Font, OpenDyslexic and Font Awesome 6 Free, each under the
+SIL Open Font License 1.1, with their licence files in
+[colony-ui's assets/fonts](https://github.com/Project-Colony/Project-Colony-Resources/tree/main/crates/colony-ui/assets/fonts).
