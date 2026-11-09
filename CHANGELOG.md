@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Project-Colony/Spotter/compare/v0.4.0...v0.4.1) (2026-11-09)
+
+
+### Fixes
+
+* **deps:** update dependencies and Rust to 1.99 and fix the open security advisories ([#38](https://github.com/Project-Colony/Spotter/issues/38)) ([6c9741f](https://github.com/Project-Colony/Spotter/commit/6c9741f3d1ad182d77428056820a07cd0e43165c))
+
 ## [0.4.0](https://github.com/Project-Colony/Spotter/compare/v0.3.0...v0.4.0) (2026-10-14)
 
 
