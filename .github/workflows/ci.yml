@@ -34,7 +34,7 @@ jobs:
           rustup default stable
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: ${{ matrix.os }}
 
@@ -81,24 +81,24 @@ jobs:
       - name: Security audit
         run: cargo install cargo-audit --locked && cargo audit
 
-  # Cargo.toml promises rust-version = 1.90. An untested floor is a guess
+  # Cargo.toml promises rust-version = 1.99. An untested floor is a guess
   # (design/dependencies.md in Project-Colony-Resources), so the promise is
   # built and tested here on exactly that toolchain, from the committed lock.
   msrv:
-    name: Minimum supported Rust (1.90)
+    name: Minimum supported Rust (1.99)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Rust 1.90
+      - name: Install Rust 1.99
         shell: bash
         run: |
-          rustup toolchain install 1.90 --profile minimal --no-self-update
-          rustup default 1.90
+          rustup toolchain install 1.99 --profile minimal --no-self-update
+          rustup default 1.99
 
       - name: Cache Rust build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: msrv
 

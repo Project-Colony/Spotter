@@ -2,8 +2,8 @@
 
 ## Prerequisites
 
-- **Rust 1.90** or newer (`rust-version` in `Cargo.toml`; CI builds and tests on
-  exactly 1.90 too).
+- **Rust 1.99** or newer (`rust-version` in `Cargo.toml`; CI builds and tests on
+  exactly 1.99 too).
 - Nothing for SQLite: `rusqlite` compiles it in.
 - On Linux, the windowing and keyring development packages. With Debian or
   Ubuntu names, as CI installs them:
@@ -52,7 +52,7 @@ real desktop at both ends of the text scale (0.7225x and 1.68x).
 ## Before a pull request
 
 CI runs these on Linux, Windows and macOS with the latest stable Rust, then
-builds and tests again on exactly Rust 1.90:
+builds and tests again on exactly Rust 1.99:
 
 ```bash
 cargo fmt --check
