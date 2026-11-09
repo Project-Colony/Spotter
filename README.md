@@ -121,7 +121,7 @@ cd Spotter
 cargo build --release
 ```
 
-Requires Rust 1.90 or newer. On Linux, install the windowing and keyring
+Requires Rust 1.99 or newer. On Linux, install the windowing and keyring
 development packages first; the list is in
 [docs/internals/development.md](docs/internals/development.md).
 
