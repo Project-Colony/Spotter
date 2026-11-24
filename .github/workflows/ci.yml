@@ -85,7 +85,7 @@ jobs:
   # (design/dependencies.md in Project-Colony-Resources), so the promise is
   # built and tested here on exactly that toolchain, from the committed lock.
   msrv:
-    name: Minimum supported Rust (1.100)
+    name: MSRV
     runs-on: ubuntu-latest
 
     steps:
