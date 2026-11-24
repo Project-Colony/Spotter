@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/Project-Colony/Spotter/compare/v0.4.1...v0.4.2) (2026-11-24)
+
+
+### Fixes
+
+* **deps:** update dependencies and Rust to 1.100 ([#43](https://github.com/Project-Colony/Spotter/issues/43)) ([4cd7fc9](https://github.com/Project-Colony/Spotter/commit/4cd7fc9b5521d163c905fa334ebe086faff08f32))
+
 ## [0.4.1](https://github.com/Project-Colony/Spotter/compare/v0.4.0...v0.4.1) (2026-11-09)
 
 
