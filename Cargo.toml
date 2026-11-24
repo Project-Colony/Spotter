@@ -3,7 +3,7 @@ name = "spotter"
 version = "0.4.1"
 repository = "https://github.com/Project-Colony/Spotter"
 edition = "2021"
-rust-version = "1.99"
+rust-version = "1.100"
 description = "A cross-platform game library tracker and statistics dashboard"
 license = "GPL-3.0-or-later"
 
@@ -12,10 +12,10 @@ iced = { version = "0.14.0", features = ["image"] }
 # The shared Colony design system: themes, fonts, labels, preferences, paths.
 # Built on iced 0.14 exactly, so the two move together.
 colony-ui = "0.1.6"
-ureq = { version = "3.5.1", features = ["json"] }
+ureq = { version = "3.5.2", features = ["json"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-rusqlite = { version = "0.41.1", features = ["bundled"] }
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 dirs = "7.0.0"
 chrono = { version = "0.4.45", features = ["serde"] }
 thiserror = "2.0.21"
@@ -23,7 +23,7 @@ csv = "1.4.0"
 scraper = "0.29.0"
 keyring = "4.2.0"
 # The `Entry` that keyring 4 builds on, and its mock store for tests.
-keyring-core = "1.0.1"
+keyring-core = "1.1.0"
 
 [build-dependencies]
 # Windows version resource (ProductName, ProductVersion) for code signing.
